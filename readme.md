@@ -1,5 +1,9 @@
 # Sistema Experto: Diagnóstico de PC 🖥️
 
+[![Tests](https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/actions/workflows/tests.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Dependencias](https://img.shields.io/badge/dependencias-ninguna-brightgreen)
+
 Este fue mi primer acercamiento a los sistemas expertos. La actividad consistía en recibir un código base generado con IA, entenderlo, corregirlo si era necesario y extenderlo con desafíos adicionales. Aquí explico qué hace cada parte y qué aprendí en el proceso.
 
 ---
