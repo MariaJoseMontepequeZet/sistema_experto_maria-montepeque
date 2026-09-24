@@ -3,7 +3,11 @@
 [![Tests](https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Motor sin dependencias](https://img.shields.io/badge/motor-sin%20dependencias-brightgreen)
-![Streamlit](https://img.shields.io/badge/interfaz%20web-Streamlit-FF4B4B)
+[![Abrir en Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://diagnostico-pc-sistema-experto.streamlit.app/)
+
+> 🚀 **Pruébalo en línea, sin instalar nada:** https://diagnostico-pc-sistema-experto.streamlit.app/
+>
+> Responde unas pocas preguntas sobre tu computadora y el sistema experto te dice qué puede estar fallando, qué hacer y **por qué** llegó a esa conclusión, con el diagrama de su razonamiento.
 
 Este fue mi primer acercamiento a los sistemas expertos. La actividad consistía en recibir un código base generado con IA, entenderlo, corregirlo si era necesario y extenderlo con desafíos adicionales. Aquí explico qué hace cada parte y qué aprendí en el proceso.
 
@@ -14,6 +18,8 @@ Este fue mi primer acercamiento a los sistemas expertos. La actividad consistía
 Requiere Python 3.10 o superior. Hay dos interfaces sobre el mismo motor.
 
 ### Interfaz web (Streamlit)
+
+Está publicada en **[diagnostico-pc-sistema-experto.streamlit.app](https://diagnostico-pc-sistema-experto.streamlit.app/)** y se actualiza sola con cada versión nueva en `main`. Para ejecutarla en tu computadora:
 
 ```bash
 pip install -r requirements.txt
