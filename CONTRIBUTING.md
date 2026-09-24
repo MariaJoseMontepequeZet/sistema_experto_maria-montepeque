@@ -1,14 +1,19 @@
 # Guía de contribución
 
-Este proyecto sigue **GitHub Flow**: una rama principal siempre estable y
-ramas cortas por cada cambio, que se integran mediante Pull Requests.
+Este proyecto usa un **GitFlow simplificado** con dos ramas permanentes y
+ramas cortas por cada cambio. Todo se integra mediante Pull Requests.
+
+```
+feat/*, fix/*, docs/* ...  ──PR──►  dev  ──PR (versión)──►  main
+```
 
 ## Ramas
 
 | Rama | Propósito |
 |---|---|
-| `main` | Código estable y funcionando. **Nunca se hace commit directo.** |
-| `<tipo>/<descripcion-corta>` | Una rama por tarea, creada desde `main` actualizada. |
+| `main` | Versiones estables publicadas. Solo recibe PRs desde `dev` (o `hotfix/*`). **Nunca se hace commit directo.** |
+| `dev` | Rama de integración: aquí se juntan y prueban los cambios antes de publicarlos. **Nunca se hace commit directo.** |
+| `<tipo>/<descripcion-corta>` | Una rama por tarea, creada desde `dev` actualizada. |
 
 Tipos de rama (coinciden con los tipos de commit):
 
@@ -20,15 +25,18 @@ Tipos de rama (coinciden con los tipos de commit):
 | `docs/` | Solo documentación | `docs/flujo-de-trabajo` |
 | `test/` | Solo pruebas | `test/casos-backward-chaining` |
 | `chore/` | Mantenimiento (configuración, CI, dependencias) | `chore/github-actions` |
+| `hotfix/` | Corrección urgente sobre `main` (sale de `main`, no de `dev`) | `hotfix/crash-al-cargar-json` |
 
 Reglas para los nombres: minúsculas, palabras separadas con guiones, sin
 tildes ni espacios, y descriptivos (nada de `cambios`, `prueba2` o `maria`).
 
 ## Flujo de trabajo
 
+### Día a día: una tarea
+
 ```bash
-# 1. Partir de main actualizada
-git switch main
+# 1. Partir de dev actualizada
+git switch dev
 git pull
 
 # 2. Crear la rama de la tarea
@@ -41,16 +49,33 @@ git commit -m "feat: preguntar solo por hipótesis que siguen vivas"
 # 4. Verificar antes de subir
 python -m unittest
 
-# 5. Subir la rama y abrir un Pull Request hacia main
+# 5. Subir la rama
 git push -u origin feat/preguntas-dinamicas
 ```
 
-6. Revisar el PR (aunque sea en solitario: leer el diff completo es la revisión).
-7. Integrar con **Squash and merge** o **Rebase and merge** para mantener un historial lineal.
-8. Borrar la rama después de integrarla.
+6. Abrir un Pull Request con **base: `dev`** (¡no `main`!).
+7. Revisar el PR (aunque sea en solitario: leer el diff completo es la revisión).
+8. Integrar con **Create a merge commit**.
+9. Actualizar `dev` local (`git switch dev` y `git pull`) y **solo entonces**
+   borrar la rama local con `git branch -d feat/preguntas-dinamicas`.
 
-Si `main` avanzó mientras trabajabas, actualiza tu rama con `git rebase main`
-antes de abrir el PR. Nunca hagas rebase de una rama que otra persona ya usa.
+Si `dev` avanzó mientras trabajabas, trae esos cambios a tu rama con
+`git merge dev` antes de abrir el PR.
+
+### Publicar una versión: `dev` → `main`
+
+Cuando `dev` tiene un conjunto de cambios probado y estable:
+
+1. Abrir un PR con **base: `main`** y **compare: `dev`**, titulado con la versión (`Versión 1.1.0`).
+2. Integrar con **Create a merge commit** (no Squash: así `dev` y `main` comparten historial
+   y el siguiente PR de versión solo muestra lo nuevo).
+3. Etiquetar la versión en `main` (ver [Versiones](#versiones)).
+
+### Corrección urgente: `hotfix/*`
+
+1. Crear la rama desde `main`: `git switch main`, `git pull`, `git switch -c hotfix/descripcion`.
+2. PR con **base: `main`**, integrar y etiquetar un PATCH (`v1.1.1`).
+3. Llevar la corrección a `dev` con un PR **base: `dev`** ← **compare: `main`**.
 
 ## Mensajes de commit
 

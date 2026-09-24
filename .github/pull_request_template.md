@@ -16,6 +16,7 @@
 
 ## Checklist
 
+- [ ] La rama base del PR es `dev` (o `main` solo si es una versión desde `dev` o un `hotfix/*`)
 - [ ] La rama sigue la convención `<tipo>/<descripcion>` (ver `CONTRIBUTING.md`)
 - [ ] Los commits siguen Conventional Commits
 - [ ] Actualicé el README si cambió el uso o el formato del conocimiento
