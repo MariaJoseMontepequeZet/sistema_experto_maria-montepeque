@@ -11,19 +11,24 @@ import sys
 from pathlib import Path
 
 from .conocimiento import RUTA_POR_DEFECTO, ErrorDeConocimiento, cargar
-from .modelo import BaseDeConocimiento
+from .modelo import ORIGEN_USUARIO, BaseDeConocimiento
 from .motor import (
     CONTRADICHA,
     CUMPLIDA,
     AnalisisRegla,
     Inferencia,
+    Pregunta,
     encadenar_hacia_adelante,
     encadenar_hacia_atras,
     exportar_red,
+    pregunta_sobre,
+    siguiente_pregunta,
 )
 
 LINEA_GRUESA = "━" * 55
 LINEA_FINA = "  " + "─" * 51
+
+RESPUESTAS_SINTOMA = {"s": True, "n": False, "ns": None}
 
 
 def preguntar_si_no(pregunta: str) -> bool:
@@ -34,18 +39,60 @@ def preguntar_si_no(pregunta: str) -> bool:
         print("  ⚠ Por favor escribe s o n.")
 
 
+def preguntar_sintoma(numero: int, pregunta: Pregunta) -> bool | None:
+    """s = sí, n = no, ns = no sé, ? = explica por qué se hace la pregunta."""
+    while True:
+        resp = input(f"  {numero}. {pregunta.texto} [s/n/ns/?]: ").strip().lower()
+        if resp in RESPUESTAS_SINTOMA:
+            return RESPUESTAS_SINTOMA[resp]
+        if resp == "?":
+            explicar_pregunta(pregunta)
+        else:
+            print("  ⚠ Escribe s (sí), n (no), ns (no sé) o ? (¿por qué me preguntas esto?).")
+
+
+def explicar_pregunta(pregunta: Pregunta) -> None:
+    if not pregunta.hipotesis:
+        print("     Ninguna hipótesis abierta depende de esta respuesta;"
+              " se pregunta porque estás en modo --completo.")
+        return
+    print("     Pregunto esto porque ayuda a confirmar o descartar:")
+    for regla in pregunta.hipotesis:
+        print(f"       • [{regla.id}] {regla.descripcion} ({regla.confianza * 100:.0f}%)")
+
+
+def recolectar_respuestas(base: BaseDeConocimiento, completo: bool) -> dict[str, bool | None]:
+    """
+    Modo dinámico: pregunta solo lo que ayuda a alguna hipótesis que sigue abierta.
+    Modo completo: hace todas las preguntas en el orden del archivo.
+    """
+    respuestas: dict[str, bool | None] = {}
+    while True:
+        if completo:
+            faltantes = [h for h in base.preguntas if h not in respuestas]
+            pregunta = pregunta_sobre(base, respuestas, faltantes[0]) if faltantes else None
+        else:
+            pregunta = siguiente_pregunta(base, respuestas)
+        if pregunta is None:
+            return respuestas
+        respuestas[pregunta.hecho] = preguntar_sintoma(len(respuestas) + 1, pregunta)
+
+
 def formatear_condiciones(condiciones: dict[str, bool]) -> str:
     return ", ".join(f"{h}={'sí' if v else 'no'}" for h, v in condiciones.items())
 
 
-def mostrar_inferencia(inferencia: Inferencia, mostrar_todos: bool) -> None:
+def mostrar_inferencia(inferencia: Inferencia, mostrar_todos: bool,
+                       no_sabe: list[str] | None = None) -> None:
     print()
     print(LINEA_GRUESA)
     print("  MOTOR DE INFERENCIA")
     print(LINEA_GRUESA)
-    afirmados = sorted(h for h, v in inferencia.hechos.valores.items()
-                       if v and inferencia.hechos.origen[h] == ["usuario"])
-    print(f"  Síntomas confirmados: {', '.join(afirmados) or '—'}")
+    del_usuario = {h: v for h, v in inferencia.hechos.valores.items()
+                   if inferencia.hechos.origen[h] == [ORIGEN_USUARIO]}
+    print(f"  Respuestas: {formatear_condiciones(del_usuario) or '—'}")
+    if no_sabe:
+        print(f"  Respondidos con 'no sé': {', '.join(no_sabe)}")
     print()
 
     diagnosticos = inferencia.diagnosticos
@@ -107,19 +154,23 @@ def mostrar_analisis(analisis: AnalisisRegla, nivel: int = 0) -> None:
         print(f"{sangria}Falta confirmar: {', '.join(analisis.por_preguntar)}")
 
 
-def consultar(base: BaseDeConocimiento, ruta_exportacion: Path) -> None:
+def consultar(base: BaseDeConocimiento, ruta_exportacion: Path, completo: bool = False) -> None:
     print()
     print("=" * 55)
     print(f"  SISTEMA EXPERTO: {base.nombre}")
-    print("  Responde s (sí) o n (no) a cada pregunta")
+    print("  Responde: s (sí) · n (no) · ns (no sé)")
+    print("  Escribe ? para saber por qué se hace una pregunta")
     print("=" * 55)
     print()
 
-    respuestas = {hecho: preguntar_si_no(p) for hecho, p in base.preguntas.items()}
+    respuestas = recolectar_respuestas(base, completo)
+    print()
+    print(f"  Se hicieron {len(respuestas)} de {len(base.preguntas)} preguntas posibles.")
 
     print()
     mostrar_todos = preguntar_si_no("¿Ver ranking completo de diagnósticos?")
-    mostrar_inferencia(encadenar_hacia_adelante(base, respuestas), mostrar_todos)
+    no_sabe = [h for h, v in respuestas.items() if v is None]
+    mostrar_inferencia(encadenar_hacia_adelante(base, respuestas), mostrar_todos, no_sabe)
 
     print()
     print("  OPCIONES ADICIONALES")
@@ -160,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="archivo JSON con la base de conocimiento")
     parser.add_argument("--salida", type=Path, default=Path("red_inferencia.json"),
                         help="ruta donde exportar la red de inferencia")
+    parser.add_argument("--completo", action="store_true",
+                        help="hacer todas las preguntas en lugar de solo las relevantes")
     args = parser.parse_args(argv)
 
     try:
@@ -172,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        consultar(base, args.salida)
+        consultar(base, args.salida, args.completo)
     except (KeyboardInterrupt, EOFError):
         print("\n  Consulta cancelada.")
         return 130

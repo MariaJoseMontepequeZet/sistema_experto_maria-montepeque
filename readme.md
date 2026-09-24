@@ -18,7 +18,19 @@ También se puede ejecutar como módulo (`python -m sistema_experto`) y usar otr
 python main.py --conocimiento conocimiento/diagnostico_pc.json --salida red_inferencia.json
 ```
 
-El programa te va haciendo preguntas de sí/no sobre los síntomas del equipo y al final te dice qué podría estar fallando y qué hacer.
+El programa te hace preguntas sobre los síntomas del equipo y al final te dice qué podría estar fallando y qué hacer. Solo pregunta lo que sirve para las hipótesis que siguen abiertas. Por ejemplo, si el equipo no enciende, termina en 2 preguntas en lugar de 14.
+
+| Respuesta | Significado |
+|---|---|
+| `s` / `n` | sí / no |
+| `ns` | no sé (el síntoma queda desconocido y no se vuelve a preguntar) |
+| `?` | ¿por qué me preguntas esto? (muestra qué diagnósticos se están evaluando) |
+
+Para responder todas las preguntas en orden, como en la versión original:
+
+```bash
+python main.py --completo
+```
 
 Para correr las pruebas:
 
@@ -34,10 +46,11 @@ conocimiento/
 sistema_experto/
   modelo.py             ← Regla, BaseDeConocimiento, BaseDeHechos
   conocimiento.py       ← carga y validación del JSON
-  motor.py              ← encadenamiento hacia adelante / atrás, exportación
+  motor.py              ← encadenamiento hacia adelante / atrás, consulta dinámica, exportación
   cli.py                ← interfaz por consola (única parte con input/print)
 tests/
   test_motor.py
+  test_consulta_dinamica.py
 main.py                 ← punto de entrada
 ```
 
@@ -104,7 +117,18 @@ Ciclo 2: [R02] Falla de RAM
 
 ### 5. Interfaz de Usuario — `cli.py`
 
-Es la única parte que usa `input()` y `print()`. Recorre las preguntas con validación `s`/`n` y le pasa las respuestas al motor.
+Es la única parte que usa `input()` y `print()`. En cada paso le pide al motor la siguiente pregunta (`siguiente_pregunta()`), valida la respuesta y, cuando ya no queda nada útil por preguntar, ejecuta la inferencia.
+
+#### Consulta dinámica
+
+`siguiente_pregunta()` usa el encadenamiento hacia atrás en cada paso:
+
+1. Analiza cada diagnóstico y descarta los que ya contradice alguna respuesta, igual que los ya confirmados.
+2. Junta las preguntas que les faltan a los diagnósticos que siguen abiertos.
+3. Elige la que necesitan más hipótesis a la vez. Si hay empate, prefiere la de mayor confianza y luego el orden del JSON.
+4. Si no queda ninguna, termina la consulta.
+
+Una prueba recorre todo el árbol de decisión y verifica las 2^14 = 16 384 combinaciones posibles de respuestas. En todas, el resultado es el mismo que si se hubieran hecho todas las preguntas: preguntar menos nunca hace perder un diagnóstico.
 
 ---
 
