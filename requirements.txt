@@ -1,0 +1,2 @@
+# Solo para la interfaz web (app.py). El motor y la consola no necesitan dependencias.
+streamlit>=1.50
