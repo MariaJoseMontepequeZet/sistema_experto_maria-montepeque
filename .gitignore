@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Salida generada por la opción "Exportar red de inferencia"
+red_inferencia.json

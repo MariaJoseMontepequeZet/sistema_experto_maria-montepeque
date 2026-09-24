@@ -6,11 +6,53 @@ Este fue mi primer acercamiento a los sistemas expertos. La actividad consistía
 
 ## Cómo ejecutar el programa
 
+Requiere Python 3.10 o superior y no tiene dependencias externas.
+
 ```bash
-python3 sistema_experto.py
+python main.py
 ```
 
-El programa te va haciendo preguntas de sí/no sobre los síntomas del equipo y al final te dice qué podría estar fallando y qué hacer.
+También se puede ejecutar como módulo (`python -m sistema_experto`) y usar otra base de conocimiento:
+
+```bash
+python main.py --conocimiento conocimiento/diagnostico_pc.json --salida red_inferencia.json
+```
+
+El programa te hace preguntas sobre los síntomas del equipo y al final te dice qué podría estar fallando y qué hacer. Solo pregunta lo que sirve para las hipótesis que siguen abiertas. Por ejemplo, si el equipo no enciende, termina en 2 preguntas en lugar de 14.
+
+| Respuesta | Significado |
+|---|---|
+| `s` / `n` | sí / no |
+| `ns` | no sé (el síntoma queda desconocido y no se vuelve a preguntar) |
+| `?` | ¿por qué me preguntas esto? (muestra qué diagnósticos se están evaluando) |
+
+Para responder todas las preguntas en orden, como en la versión original:
+
+```bash
+python main.py --completo
+```
+
+Para correr las pruebas:
+
+```bash
+python -m unittest -v
+```
+
+## Estructura del proyecto
+
+```
+conocimiento/
+  diagnostico_pc.json   ← reglas y preguntas (se editan sin tocar Python)
+sistema_experto/
+  modelo.py             ← Regla, BaseDeConocimiento, BaseDeHechos
+  conocimiento.py       ← carga y validación del JSON
+  motor.py              ← encadenamiento hacia adelante / atrás, consulta dinámica, exportación
+  cli.py                ← interfaz por consola (única parte con input/print)
+tests/
+  test_motor.py
+  test_consulta_dinamica.py
+main.py                 ← punto de entrada
+```
 
 ---
 
@@ -22,39 +64,71 @@ Antes de empezar no tenía muy claro el concepto. Lo que entendí es que un sist
 
 ## Los 5 componentes del código
 
-### 1. Base de Conocimiento
+### 1. Base de Conocimiento — `conocimiento/diagnostico_pc.json`
 
-Es una lista de reglas. Cada regla dice: "si se dan estos síntomas, entonces probablemente el problema es este". También tiene un número de confianza (entre 0 y 1) que indica qué tan seguro está el sistema de ese diagnóstico.
+Vive en un archivo JSON, separado del código, con dos partes:
 
-```python
+- **`hechos`**: los síntomas que se le preguntan al usuario, cada uno con su pregunta.
+- **`reglas`**: "SI estas condiciones ENTONCES este hecho". Cada condición indica si el hecho tiene que ser verdadero (`true`) o falso (`false`), así que la negación sale natural. Las reglas que tienen `recomendacion` son diagnósticos finales; las que no la tienen producen **hechos intermedios** que usan otras reglas.
+
+```json
 {
-    "id": "R07",
-    "descripcion": "Sobrecalentamiento",
-    "condiciones": ["enciende", "se_apaga_solo", "calor_excesivo"],
-    "conclusion": "Limpiar ventiladores y reaplicar pasta térmica",
-    "confianza": 0.90
+  "id": "R02",
+  "descripcion": "Falla de RAM",
+  "si": { "arranque_sin_video": true, "pitidos_arranque": true },
+  "entonces": "falla_ram",
+  "recomendacion": "Probar con módulos de RAM de a uno",
+  "confianza": 0.88
 }
 ```
 
-### 2. Base de Hechos
+Al cargarse, `conocimiento.py` valida el archivo y reporta todos los errores juntos:
+- condiciones sin pregunta ni regla que las produzca,
+- IDs duplicados,
+- reglas con condiciones idénticas,
+- confianza fuera de rango,
+- dependencias circulares,
+- preguntas que ninguna regla usa.
 
-Es un `set` de Python donde se van guardando los síntomas que el usuario confirma con "sí" durante la consulta. Elegí `set` porque el código original lo usaba así y tiene sentido: no puede haber síntomas repetidos y la búsqueda es rápida.
+### 2. Base de Hechos — `BaseDeHechos` en `modelo.py`
 
-### 3. Motor de Inferencia
+Guarda para cada hecho su valor (verdadero, falso o desconocido), su certeza y qué lo originó: el usuario o una regla. Se crea nueva en cada consulta, así que una consulta nunca contamina a la siguiente.
 
-Aquí está la lógica principal. Tiene tres funciones:
+### 3. Motor de Inferencia — `motor.py`
 
-- `equiparar()` — revisa cuáles reglas se cumplen con los síntomas ingresados
-- `resolver_conflictos()` — si varias reglas aplican, elige la de mayor confianza
-- `inferir()` — las orquesta y muestra el resultado final
+- `equiparar()`: devuelve las reglas cuyas condiciones se cumplen y que todavía no se dispararon.
+- `resolver_conflictos()`: elige la de mayor confianza y, si hay empate, la más específica.
+- `encadenar_hacia_adelante()`: repite el ciclo *equiparar → resolver → disparar* hasta que ninguna regla nueva aplica. Cada conclusión se agrega a la base de hechos y puede activar otras reglas. La certeza se propaga por la cadena: `confianza de la regla × certeza mínima de sus condiciones`.
+
+El motor no imprime nada, solo devuelve datos. Por eso se puede testear y se podría conectar a una interfaz web sin cambiarlo.
 
 ### 4. Interfaz de Explicación
 
-Después del diagnóstico el sistema muestra qué síntomas activaron la regla y cuáles otras reglas fueron descartadas. Esto me pareció muy útil porque puedes ver el "por qué" de la decisión, no solo el resultado.
+`Inferencia.justificacion()` reconstruye la cadena de reglas que llevó a un diagnóstico, y la consola la muestra ciclo por ciclo:
 
-### 5. Interfaz de Usuario
+```
+Ciclo 1: [I01] Arranca pero no muestra imagen
+    SI enciende=sí, hay_video=no
+    ENTONCES arranque_sin_video  (100%)
+Ciclo 2: [R02] Falla de RAM
+    SI arranque_sin_video=sí, pitidos_arranque=sí
+    ENTONCES falla_ram  (88%)
+```
 
-La función `consultar()` recorre todas las preguntas y va llenando la base de hechos según las respuestas. Le agregué validación para que solo acepte `s` o `n`, porque el código original no la tenía y cualquier tecla incorrecta dejaba el síntoma sin registrar sin avisar nada.
+### 5. Interfaz de Usuario — `cli.py`
+
+Es la única parte que usa `input()` y `print()`. En cada paso le pide al motor la siguiente pregunta (`siguiente_pregunta()`), valida la respuesta y, cuando ya no queda nada útil por preguntar, ejecuta la inferencia.
+
+#### Consulta dinámica
+
+`siguiente_pregunta()` usa el encadenamiento hacia atrás en cada paso:
+
+1. Analiza cada diagnóstico y descarta los que ya contradice alguna respuesta, igual que los ya confirmados.
+2. Junta las preguntas que les faltan a los diagnósticos que siguen abiertos.
+3. Elige la que necesitan más hipótesis a la vez. Si hay empate, prefiere la de mayor confianza y luego el orden del JSON.
+4. Si no queda ninguna, termina la consulta.
+
+Una prueba recorre todo el árbol de decisión y verifica las 2^14 = 16 384 combinaciones posibles de respuestas. En todas, el resultado es el mismo que si se hubieran hecho todas las preguntas: preguntar menos nunca hace perder un diagnóstico.
 
 ---
 
@@ -65,6 +139,15 @@ El código base funcionaba, pero le hice dos cambios pequeños:
 **Validación de entrada:** si escribías cualquier cosa que no fuera `s` o `n`, el programa simplemente lo ignoraba. Agregué un bucle `while` que repite la pregunta hasta recibir una respuesta válida.
 
 **`if __name__ == '__main__':`:** sin esto, importar el archivo para hacer pruebas ejecutaba automáticamente toda la interfaz interactiva. Con este cambio puedo probar las funciones por separado sin que me aparezcan las preguntas.
+
+### Refactor de arquitectura
+
+Después de los desafíos reorganicé el proyecto:
+
+- **El conocimiento pasó a JSON.** Así, quien sabe de hardware puede editarlo sin saber programar, y el validador avisa si algo está mal.
+- **Hechos booleanos en lugar de pares opuestos.** Antes existían `enciende` y `no_enciende`, o `pitidos_arranque` y `sin_pitidos`, y se podía responder "sí" a los dos. Ahora hay un solo hecho y las reglas piden `true` o `false`. Se unificaron los pares redundantes (`sin_video` y `pantalla_negra` pasaron a ser `hay_video`; `sin_luces` pasó a ser `luces_led`), así que las preguntas bajaron de 18 a 14.
+- **Encadenamiento hacia adelante real.** Antes el motor hacía una sola pasada y las conclusiones eran frases de texto. Ahora las conclusiones son hechos que alimentan a otras reglas. Por ejemplo, `I01` deduce `arranque_sin_video`, y de ahí `R02` (RAM) y `R03` (video) se distinguen solo por los pitidos.
+- **El motor quedó separado de la interfaz**, y se agregaron pruebas unitarias.
 
 ---
 
@@ -86,29 +169,37 @@ Lo verifiqué probando cada combinación de síntomas manualmente y confirmando 
 
 El sistema original solo mostraba el diagnóstico con mayor confianza. El problema es que a veces un equipo puede tener varios problemas al mismo tiempo. Por ejemplo, si el equipo inicia lento y el disco está al 100% Y el ventilador está siempre activo, tanto "problemas de almacenamiento" como "posible malware" podrían aplicar.
 
-Agregué la función `resolver_todos()` que ordena todos los diagnósticos posibles de mayor a menor confianza y los muestra como un ranking. Al final de la consulta el programa pregunta si quieres verlos todos.
+`Inferencia.diagnosticos` devuelve todos los diagnósticos a los que llegó el motor, ordenados de mayor a menor certeza. Si dos reglas llegan al mismo diagnóstico, sus certezas se combinan con la fórmula de MYCIN (`cf1 + cf2 × (1 − cf1)`). Al final de la consulta el programa pregunta si quieres ver el ranking completo.
 
 ```
-#1 [R04] Problemas de almacenamiento — 85%
-#2 [R05] Infección por malware — 72%
+#1 Problemas de almacenamiento  (85%)
+    → Verificar salud del disco duro con herramienta SMART
+
+#2 Infección por malware  (72%)
+    → Escanear con antivirus y revisar procesos en segundo plano
 ```
 
 ### Desafío 3 — Encadenamiento hacia atrás
 
 Este fue el más difícil de entender al principio. La idea es poder preguntar al revés: en lugar de "dados estos síntomas, ¿qué problema es?", preguntar "para que sea sobrecalentamiento, ¿qué síntomas necesito confirmar?".
 
-La función `backward_chain()` recibe el ID de una regla y los hechos que ya tienes, y te dice cuáles síntomas ya confirmaste y cuáles todavía faltan. Si faltan síntomas, te dice que la regla no se puede activar aún.
+La función `encadenar_hacia_atras()` recibe la hipótesis (ID de regla, descripción o nombre del hecho) y las respuestas que ya tienes. Para cada condición indica si está cumplida, contradicha o pendiente. Si la condición es un hecho intermedio, baja recursivamente a las reglas que lo producen. Al final lista qué preguntas faltan para confirmar la hipótesis.
 
 ```
-Regla objetivo : R07 — Sobrecalentamiento
-Ya confirmados : ['enciende', 'se_apaga_solo']
-Pendientes     : ['calor_excesivo']
-¿Se activa?    : ✗ NO (faltan síntomas)
+Regla objetivo : R02 — Falla de RAM (88%)
+¿Se activa?    : … AÚN NO (faltan síntomas)
+  ? arranque_sin_video = sí  [pendiente]
+    Regla objetivo : I01 — Arranca pero no muestra imagen (100%)
+    ¿Se activa?    : … AÚN NO (faltan síntomas)
+      ✓ enciende = sí  [cumplida]
+      ? hay_video = no  [pendiente]
+  ? pitidos_arranque = sí  [pendiente]
+Falta confirmar: hay_video, pitidos_arranque
 ```
 
 ### Desafío 4 — Exportar la red como JSON
 
-Agregué `exportar_red()` que recorre todas las reglas y arma un grafo: los síntomas y conclusiones son nodos, y las reglas son las conexiones entre ellos. Se guarda en `red_inferencia.json`. La idea es que ese archivo se podría abrir en herramientas de visualización de grafos. La base actual genera 28 nodos y 29 aristas.
+Agregué `exportar_red()`, que recorre todas las reglas y arma un grafo dirigido. Los nodos son los hechos (de entrada, intermedios y diagnósticos) y también las reglas. Las aristas van de cada condición a su regla, indicando el valor esperado, y de cada regla al hecho que concluye. Se guarda en `red_inferencia.json` y se puede abrir en herramientas de visualización de grafos. La base actual genera 38 nodos y 40 aristas.
 
 ---
 

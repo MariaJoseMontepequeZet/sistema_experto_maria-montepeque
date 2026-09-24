@@ -1,0 +1,115 @@
+{
+  "nombre": "Diagnóstico de PC",
+  "hechos": {
+    "enciende":                  { "pregunta": "¿El equipo arranca al presionar el botón (giran ventiladores o se escucha actividad)?" },
+    "luces_led":                 { "pregunta": "¿Se enciende alguna luz LED (placa madre, chasis o fuente)?" },
+    "pitidos_arranque":          { "pregunta": "¿Se escuchan pitidos (beeps) al encender?" },
+    "hay_video":                 { "pregunta": "¿La pantalla muestra imagen al encender?" },
+    "inicia_lento":              { "pregunta": "¿El equipo tarda más de 3 minutos en iniciar?" },
+    "disco_al_100":              { "pregunta": "¿El administrador de tareas muestra disco al 100%?" },
+    "ventilador_siempre_activo": { "pregunta": "¿El ventilador está siempre a máxima velocidad?" },
+    "pantalla_azul_frecuente":   { "pregunta": "¿Aparece pantalla azul (BSOD) con frecuencia?" },
+    "se_apaga_solo":             { "pregunta": "¿El equipo se apaga solo sin advertencia?" },
+    "calor_excesivo":            { "pregunta": "¿El chasis está muy caliente al tacto?" },
+    "fecha_hora_incorrecta":     { "pregunta": "¿La fecha y hora se reinician cada vez que apaga el equipo?" },
+    "conexion_red":              { "pregunta": "¿El equipo se conecta a alguna red (WiFi/Ethernet)?" },
+    "otras_apps_funcionan":      { "pregunta": "¿Las demás aplicaciones funcionan con normalidad?" },
+    "perifericos_responden":     { "pregunta": "¿El teclado y el mouse USB responden al encender?" }
+  },
+  "reglas": [
+    {
+      "id": "I01",
+      "descripcion": "Arranca pero no muestra imagen",
+      "si": { "enciende": true, "hay_video": false },
+      "entonces": "arranque_sin_video",
+      "confianza": 1.0
+    },
+    {
+      "id": "I02",
+      "descripcion": "Rendimiento degradado",
+      "si": { "enciende": true, "inicia_lento": true },
+      "entonces": "rendimiento_degradado",
+      "confianza": 1.0
+    },
+    {
+      "id": "R01",
+      "descripcion": "Fuente de poder dañada",
+      "si": { "enciende": false, "luces_led": false },
+      "entonces": "falla_fuente",
+      "recomendacion": "Revisar o reemplazar la fuente de poder",
+      "confianza": 0.92
+    },
+    {
+      "id": "R02",
+      "descripcion": "Falla de RAM",
+      "si": { "arranque_sin_video": true, "pitidos_arranque": true },
+      "entonces": "falla_ram",
+      "recomendacion": "Probar con módulos de RAM de a uno",
+      "confianza": 0.88
+    },
+    {
+      "id": "R03",
+      "descripcion": "Falla de tarjeta de video",
+      "si": { "arranque_sin_video": true, "pitidos_arranque": false },
+      "entonces": "falla_video",
+      "recomendacion": "Revisar tarjeta de video y conexiones del monitor",
+      "confianza": 0.80
+    },
+    {
+      "id": "R04",
+      "descripcion": "Problemas de almacenamiento",
+      "si": { "rendimiento_degradado": true, "disco_al_100": true },
+      "entonces": "falla_disco",
+      "recomendacion": "Verificar salud del disco duro con herramienta SMART",
+      "confianza": 0.85
+    },
+    {
+      "id": "R05",
+      "descripcion": "Infección por malware",
+      "si": { "rendimiento_degradado": true, "ventilador_siempre_activo": true },
+      "entonces": "malware",
+      "recomendacion": "Escanear con antivirus y revisar procesos en segundo plano",
+      "confianza": 0.72
+    },
+    {
+      "id": "R06",
+      "descripcion": "Driver o RAM dañada",
+      "si": { "enciende": true, "pantalla_azul_frecuente": true },
+      "entonces": "falla_driver_o_ram",
+      "recomendacion": "Actualizar drivers y testear memoria RAM con MemTest86",
+      "confianza": 0.87
+    },
+    {
+      "id": "R07",
+      "descripcion": "Sobrecalentamiento",
+      "si": { "enciende": true, "se_apaga_solo": true, "calor_excesivo": true },
+      "entonces": "sobrecalentamiento",
+      "recomendacion": "Limpiar ventiladores y reaplicar pasta térmica",
+      "confianza": 0.90
+    },
+    {
+      "id": "R08",
+      "descripcion": "CMOS / Batería de BIOS agotada",
+      "si": { "enciende": true, "fecha_hora_incorrecta": true, "pitidos_arranque": true },
+      "entonces": "pila_bios_agotada",
+      "recomendacion": "Reemplazar la pila CR2032 de la placa madre",
+      "confianza": 0.83
+    },
+    {
+      "id": "R09",
+      "descripcion": "Falla de adaptador de red / drivers WiFi",
+      "si": { "enciende": true, "conexion_red": false, "otras_apps_funcionan": true },
+      "entonces": "falla_red",
+      "recomendacion": "Reinstalar drivers de red o reemplazar adaptador WiFi",
+      "confianza": 0.78
+    },
+    {
+      "id": "R10",
+      "descripcion": "Falla de controlador USB",
+      "si": { "enciende": true, "perifericos_responden": false, "pitidos_arranque": false },
+      "entonces": "falla_usb",
+      "recomendacion": "Desinstalar y reinstalar controladores USB en el Administrador de dispositivos",
+      "confianza": 0.75
+    }
+  ]
+}
