@@ -27,5 +27,11 @@ jobs:
         run: |
           python -c "from sistema_experto import cargar; b = cargar(); print(f'{len(b.reglas)} reglas, {len(b.preguntas)} preguntas: OK')"
 
-      - name: Ejecutar pruebas
+      - name: Ejecutar pruebas (sin dependencias externas)
         run: python -m unittest -v
+
+      - name: Instalar dependencias de la interfaz web
+        run: python -m pip install -r requirements.txt
+
+      - name: Ejecutar pruebas de la interfaz web
+        run: python -m unittest tests.test_app -v

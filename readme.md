@@ -2,7 +2,8 @@
 
 [![Tests](https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Dependencias](https://img.shields.io/badge/dependencias-ninguna-brightgreen)
+![Motor sin dependencias](https://img.shields.io/badge/motor-sin%20dependencias-brightgreen)
+![Streamlit](https://img.shields.io/badge/interfaz%20web-Streamlit-FF4B4B)
 
 Este fue mi primer acercamiento a los sistemas expertos. La actividad consistía en recibir un código base generado con IA, entenderlo, corregirlo si era necesario y extenderlo con desafíos adicionales. Aquí explico qué hace cada parte y qué aprendí en el proceso.
 
@@ -10,7 +11,25 @@ Este fue mi primer acercamiento a los sistemas expertos. La actividad consistía
 
 ## Cómo ejecutar el programa
 
-Requiere Python 3.10 o superior y no tiene dependencias externas.
+Requiere Python 3.10 o superior. Hay dos interfaces sobre el mismo motor.
+
+### Interfaz web (Streamlit)
+
+```bash
+pip install -r requirements.txt
+```
+```bash
+streamlit run app.py
+```
+
+Se abre en el navegador con:
+- botones Sí / No / No sé y la opción de deshacer;
+- el diagnóstico con su certeza y otras posibilidades;
+- el **diagrama de la cadena de razonamiento**;
+- un explorador de hipótesis (encadenamiento hacia atrás);
+- el mapa completo de la base de conocimiento.
+
+### Consola (sin dependencias)
 
 ```bash
 python main.py
@@ -51,11 +70,16 @@ sistema_experto/
   modelo.py             ← Regla, BaseDeConocimiento, BaseDeHechos
   conocimiento.py       ← carga y validación del JSON
   motor.py              ← encadenamiento hacia adelante / atrás, consulta dinámica, exportación
+  visualizacion.py      ← diagramas Graphviz (DOT) del razonamiento y de la red
   cli.py                ← interfaz por consola (única parte con input/print)
 tests/
   test_motor.py
   test_consulta_dinamica.py
-main.py                 ← punto de entrada
+  test_visualizacion.py
+  test_app.py           ← simula la interfaz web (se omite si no hay Streamlit)
+app.py                  ← interfaz web (Streamlit)
+main.py                 ← punto de entrada de la consola
+requirements.txt        ← solo para la interfaz web
 ```
 
 ---
