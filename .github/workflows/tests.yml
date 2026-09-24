@@ -24,7 +24,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Validar la base de conocimiento
-        run: python -c "from sistema_experto import cargar; b = cargar(); print(f'{len(b.reglas)} reglas, {len(b.preguntas)} preguntas: OK')"
+        run: |
+          python -c "from sistema_experto import cargar; b = cargar(); print(f'{len(b.reglas)} reglas, {len(b.preguntas)} preguntas: OK')"
 
       - name: Ejecutar pruebas
         run: python -m unittest -v
