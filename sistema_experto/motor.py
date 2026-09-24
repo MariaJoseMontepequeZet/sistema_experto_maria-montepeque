@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 
 from .modelo import BaseDeConocimiento, BaseDeHechos, Regla
 
+# hecho de entrada -> True (sí), False (no) o None (no sé)
+Respuestas = Mapping[str, bool | None]
+
 # ──────────────────────────────────────────────────────────────
 # Encadenamiento hacia adelante
 # ──────────────────────────────────────────────────────────────
@@ -100,11 +103,12 @@ def resolver_conflictos(conflict_set: list[Regla]) -> Regla | None:
 
 
 def encadenar_hacia_adelante(base: BaseDeConocimiento,
-                             respuestas: Mapping[str, bool]) -> Inferencia:
+                             respuestas: Respuestas) -> Inferencia:
     """
     Ciclo reconocer-actuar hasta punto fijo:
       equiparar → resolver conflictos → disparar (afirmar la conclusión)
     Los hechos derivados alimentan a otras reglas en ciclos posteriores.
+    Las respuestas "no sé" (None) dejan el hecho como desconocido.
     """
     desconocidos = set(respuestas) - set(base.preguntas)
     if desconocidos:
@@ -112,7 +116,8 @@ def encadenar_hacia_adelante(base: BaseDeConocimiento,
 
     hechos = BaseDeHechos()
     for hecho, valor in respuestas.items():
-        hechos.afirmar(hecho, valor)
+        if valor is not None:
+            hechos.afirmar(hecho, valor)
 
     inferencia = Inferencia(hechos)
     disparadas: set[str] = set()
@@ -191,7 +196,7 @@ def buscar_metas(base: BaseDeConocimiento, meta: str) -> list[Regla]:
 
 
 def encadenar_hacia_atras(base: BaseDeConocimiento, meta: str,
-                          respuestas: Mapping[str, bool]) -> list[AnalisisRegla]:
+                          respuestas: Respuestas) -> list[AnalisisRegla]:
     """
     Parte de una hipótesis y determina recursivamente qué condiciones ya se
     cumplen, cuáles la contradicen y qué falta preguntar para confirmarla.
@@ -202,8 +207,75 @@ def encadenar_hacia_atras(base: BaseDeConocimiento, meta: str,
     return [_analizar(base, r, respuestas, frozenset()) for r in reglas]
 
 
+# ──────────────────────────────────────────────────────────────
+# Consulta dinámica (preguntas dirigidas por hipótesis)
+# ──────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class Pregunta:
+    hecho: str
+    texto: str
+    hipotesis: tuple[Regla, ...]   # diagnósticos que esta respuesta ayuda a confirmar o descartar
+
+
+def hipotesis_abiertas(base: BaseDeConocimiento, respuestas: Respuestas) -> list[AnalisisRegla]:
+    """
+    Diagnósticos que todavía pueden activarse y para los que queda alguna
+    pregunta sin hacer. Los descartados, los ya confirmados y los que solo
+    dependen de respuestas "no sé" quedan fuera.
+    """
+    abiertas = []
+    for regla in base.reglas:
+        if not regla.es_diagnostico:
+            continue
+        analisis = _analizar(base, regla, respuestas, frozenset())
+        if any(h not in respuestas for h in analisis.por_preguntar):
+            abiertas.append(analisis)
+    return abiertas
+
+
+def siguiente_pregunta(base: BaseDeConocimiento, respuestas: Respuestas) -> Pregunta | None:
+    """
+    Elige la pregunta que más hipótesis abiertas necesitan (así cada respuesta
+    confirma o descarta la mayor cantidad posible). Desempata por la confianza
+    de las hipótesis y luego por el orden del archivo de conocimiento.
+    Devuelve None cuando ya no queda nada útil por preguntar.
+    """
+    interesadas = _hipotesis_por_hecho(base, respuestas)
+    if not interesadas:
+        return None
+
+    orden = list(base.preguntas)
+    hecho = max(
+        interesadas,
+        key=lambda h: (len(interesadas[h]),
+                       max(r.confianza for r in interesadas[h]),
+                       -orden.index(h)),
+    )
+    return pregunta_sobre(base, respuestas, hecho, interesadas)
+
+
+def pregunta_sobre(base: BaseDeConocimiento, respuestas: Respuestas, hecho: str,
+                   interesadas: dict[str, list[Regla]] | None = None) -> Pregunta:
+    """Arma la pregunta de un hecho con las hipótesis abiertas que dependen de él."""
+    if interesadas is None:
+        interesadas = _hipotesis_por_hecho(base, respuestas)
+    hipotesis = sorted(interesadas.get(hecho, []), key=lambda r: r.confianza, reverse=True)
+    return Pregunta(hecho, base.preguntas[hecho], tuple(hipotesis))
+
+
+def _hipotesis_por_hecho(base: BaseDeConocimiento,
+                         respuestas: Respuestas) -> dict[str, list[Regla]]:
+    interesadas: dict[str, list[Regla]] = {}
+    for analisis in hipotesis_abiertas(base, respuestas):
+        for hecho in analisis.por_preguntar:
+            if hecho not in respuestas:
+                interesadas.setdefault(hecho, []).append(analisis.regla)
+    return interesadas
+
+
 def _analizar(base: BaseDeConocimiento, regla: Regla,
-              respuestas: Mapping[str, bool], camino: frozenset[str]) -> AnalisisRegla:
+              respuestas: Respuestas, camino: frozenset[str]) -> AnalisisRegla:
     camino = camino | {regla.id}
     estados = []
     for hecho, esperado in regla.condiciones.items():
