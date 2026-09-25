@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🚀 Probar la demo en línea
+    url: https://diagnostico-pc-sistema-experto.streamlit.app/
+    about: Prueba el sistema experto antes de reportar.
