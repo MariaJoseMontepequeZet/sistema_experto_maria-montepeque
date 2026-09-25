@@ -1,0 +1,46 @@
+name: 🩺 Proponer o corregir un diagnóstico
+description: Una falla que el sistema no detecta, o un diagnóstico que da un resultado equivocado.
+labels: ["conocimiento"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por ayudar a mejorar la base de conocimiento.
+        Revisa la [guía para escribir reglas](https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/blob/main/docs/conocimiento.md) si quieres proponer la regla completa.
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Tipo de propuesta
+      options:
+        - Falla nueva que el sistema no detecta
+        - Diagnóstico equivocado con ciertas respuestas
+        - Recomendación o advertencia que se puede mejorar
+    validations:
+      required: true
+  - type: input
+    id: falla
+    attributes:
+      label: Falla o diagnóstico
+      placeholder: "Pila CMOS agotada"
+    validations:
+      required: true
+  - type: textarea
+    id: sintomas
+    attributes:
+      label: Síntomas que la identifican
+      description: Qué observa el usuario, y qué síntomas la distinguen de fallas parecidas.
+      placeholder: |
+        - La fecha y hora se reinician al desconectar el equipo
+        - Puede o no haber pitidos al encender
+    validations:
+      required: true
+  - type: textarea
+    id: recomendacion
+    attributes:
+      label: Recomendación y precauciones
+      placeholder: "Reemplazar la pila CR2032. Apagar y desconectar el equipo antes de abrirlo."
+  - type: input
+    id: fuente
+    attributes:
+      label: Fuente
+      description: Manual del fabricante, documentación técnica o experiencia profesional.

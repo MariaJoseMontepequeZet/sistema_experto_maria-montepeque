@@ -37,6 +37,7 @@
       "si": { "enciende": false, "luces_led": false },
       "entonces": "falla_fuente",
       "recomendacion": "Revisar o reemplazar la fuente de poder",
+      "advertencia": "Nunca abras la fuente de poder: sus capacitores guardan carga peligrosa aunque esté desconectada. Si hay que reemplazarla, cámbiala completa.",
       "confianza": 0.92
     },
     {
@@ -45,6 +46,7 @@
       "si": { "arranque_sin_video": true, "pitidos_arranque": true },
       "entonces": "falla_ram",
       "recomendacion": "Probar con módulos de RAM de a uno",
+      "advertencia": "Apaga el equipo, desconéctalo de la corriente y toca una superficie metálica antes de manipular la RAM para descargar la electricidad estática.",
       "confianza": 0.88
     },
     {
@@ -53,6 +55,7 @@
       "si": { "arranque_sin_video": true, "pitidos_arranque": false },
       "entonces": "falla_video",
       "recomendacion": "Revisar tarjeta de video y conexiones del monitor",
+      "advertencia": "Apaga y desconecta el equipo antes de retirar o reconectar la tarjeta de video.",
       "confianza": 0.80
     },
     {
@@ -61,6 +64,7 @@
       "si": { "rendimiento_degradado": true, "disco_al_100": true },
       "entonces": "falla_disco",
       "recomendacion": "Verificar salud del disco duro con herramienta SMART",
+      "advertencia": "Haz una copia de seguridad de tus archivos cuanto antes: un disco que falla puede dejar de funcionar sin aviso.",
       "confianza": 0.85
     },
     {
@@ -69,6 +73,7 @@
       "si": { "rendimiento_degradado": true, "ventilador_siempre_activo": true },
       "entonces": "malware",
       "recomendacion": "Escanear con antivirus y revisar procesos en segundo plano",
+      "advertencia": "No ingreses contraseñas ni datos bancarios en este equipo hasta limpiarlo. Si aparece un pedido de rescate, desconéctalo de la red.",
       "confianza": 0.72
     },
     {
@@ -85,6 +90,7 @@
       "si": { "enciende": true, "se_apaga_solo": true, "calor_excesivo": true },
       "entonces": "sobrecalentamiento",
       "recomendacion": "Limpiar ventiladores y reaplicar pasta térmica",
+      "advertencia": "Apaga y desconecta el equipo antes de abrirlo. No uses aspiradora sobre los componentes; usa aire comprimido con el ventilador sujeto.",
       "confianza": 0.90
     },
     {
@@ -93,6 +99,7 @@
       "si": { "enciende": true, "fecha_hora_incorrecta": true, "pitidos_arranque": true },
       "entonces": "pila_bios_agotada",
       "recomendacion": "Reemplazar la pila CR2032 de la placa madre",
+      "advertencia": "Apaga y desconecta el equipo antes de retirar la pila. Anota la configuración del BIOS: se restablecerá al cambiarla.",
       "confianza": 0.83
     },
     {

@@ -43,7 +43,7 @@ def dot_razonamiento(inferencia: Inferencia, hecho: str) -> str:
         regla = d.regla
         id_regla = f"regla:{regla.id}"
         nodo(id_regla, f"{regla.id}\n{regla.descripcion}\n{d.certeza * 100:.0f}%", "regla")
-        for condicion, esperado in regla.condiciones.items():
+        for condicion in regla.condiciones:
             if condicion in hechos.origen and hechos.origen[condicion] != ["usuario"]:
                 nodo(condicion, condicion, "intermedio")
             else:
