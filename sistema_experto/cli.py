@@ -25,6 +25,9 @@ from .motor import (
     siguiente_pregunta,
 )
 
+AVISO = ("Aviso: este sistema orienta, no reemplaza a un técnico.\n"
+         "  Apaga y desconecta el equipo antes de abrirlo.")
+
 LINEA_GRUESA = "━" * 55
 LINEA_FINA = "  " + "─" * 51
 
@@ -109,6 +112,8 @@ def mostrar_inferencia(inferencia: Inferencia, mostrar_todos: bool,
             print(f"  #{i} {dg.descripcion}  ({dg.certeza * 100:.0f}%)")
             for rec in dg.recomendaciones:
                 print(f"      → {rec}")
+            for adv in dg.advertencias:
+                print(f"      ⚠ {adv}")
             print()
     else:
         dg = diagnosticos[0]
@@ -118,6 +123,8 @@ def mostrar_inferencia(inferencia: Inferencia, mostrar_todos: bool,
         for rec in dg.recomendaciones:
             print(f"  Recomendación: {rec}")
         print(f"  Certeza:       {dg.certeza * 100:.0f}%")
+        for adv in dg.advertencias:
+            print(f"  ⚠ Precaución:  {adv}")
         print()
 
     principal = diagnosticos[0]
@@ -160,6 +167,8 @@ def consultar(base: BaseDeConocimiento, ruta_exportacion: Path, completo: bool =
     print(f"  SISTEMA EXPERTO: {base.nombre}")
     print("  Responde: s (sí) · n (no) · ns (no sé)")
     print("  Escribe ? para saber por qué se hace una pregunta")
+    print("-" * 55)
+    print(f"  {AVISO}")
     print("=" * 55)
     print()
 

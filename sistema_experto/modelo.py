@@ -21,6 +21,7 @@ class Regla:
     conclusion: str                # hecho que se afirma al disparar la regla
     confianza: float
     recomendacion: str | None = None
+    advertencia: str | None = None   # aviso de seguridad que acompaña a la recomendación
 
     @property
     def es_diagnostico(self) -> bool:
