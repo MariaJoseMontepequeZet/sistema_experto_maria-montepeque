@@ -22,25 +22,45 @@ class TestApp(unittest.TestCase):
         boton.click().run()
         self.assertFalse(self.app.exception, self.app.exception)
 
+    def pregunta(self) -> str:
+        return self.app.subheader[0].value
+
     def test_primera_pregunta(self):
         self.assertFalse(self.app.exception)
-        self.assertIn("arranca", self.app.subheader[0].value)
+        self.assertIn("arranca", self.pregunta())
 
-    def test_consulta_completa_hasta_el_diagnostico(self):
-        self.clic("No")   # ¿arranca?
-        self.clic("No")   # ¿luces LED?
+    def test_consulta_con_pregunta_de_opcion(self):
+        self.clic("No")                           # ¿arranca?
+        self.assertIn("tipo de equipo", self.pregunta())
+        self.clic("Computadora de escritorio")    # pregunta de opción: un botón por opción
+        self.clic("No")                           # ¿luces LED?
         self.assertIn("Fuente de poder dañada", self.app.success[0].value)
         self.assertIn("Nunca abras la fuente", self.app.warning[0].value)
         self.assertEqual(len(self.app.tabs), 4)
 
+    def test_pregunta_numerica(self):
+        self.clic("Sí")                           # ¿arranca?
+        # responder "no sé" hasta llegar a la temperatura
+        for _ in range(20):
+            if self.app.number_input:
+                break
+            self.clic("No sé")
+        [campo] = self.app.number_input
+        self.assertIn("°C", campo.label)
+        self.assertTrue([b for b in self.app.button if b.label == "Responder"][0].disabled)
+        campo.set_value(95).run()
+        self.clic("Responder")
+        self.assertNotIn("temperatura", self.pregunta() if self.app.subheader else "")
+        self.assertEqual(self.app.session_state["respuestas"]["temperatura_cpu"], 95.0)
+
     def test_deshacer_vuelve_a_la_pregunta_anterior(self):
         self.clic("No")
-        self.assertIn("LED", self.app.subheader[0].value)
+        self.assertIn("tipo de equipo", self.pregunta())
         self.clic("↩️ Deshacer")
-        self.assertIn("arranca", self.app.subheader[0].value)
+        self.assertIn("arranca", self.pregunta())
 
     def test_no_se_no_rompe_la_consulta(self):
-        for _ in range(20):   # hay 14 preguntas como máximo
+        for _ in range(20):   # hay 16 preguntas como máximo
             if not [b for b in self.app.button if b.label == "No sé"]:
                 break
             self.clic("No sé")
