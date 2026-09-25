@@ -1,0 +1,36 @@
+name: 🐞 Reportar un error
+description: El programa falla, se cierra o muestra algo incorrecto.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: que-paso
+    attributes:
+      label: ¿Qué pasó?
+      description: Describe el error y, si puedes, pega el mensaje completo.
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducirlo
+      placeholder: |
+        1. Abrí la demo
+        2. Respondí "No" a "¿El equipo arranca...?"
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: interfaz
+    attributes:
+      label: ¿Dónde ocurrió?
+      options:
+        - Demo en línea (Streamlit Cloud)
+        - Interfaz web local (streamlit run app.py)
+        - Consola (python main.py)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Python (si fue local)
+      placeholder: "3.12"

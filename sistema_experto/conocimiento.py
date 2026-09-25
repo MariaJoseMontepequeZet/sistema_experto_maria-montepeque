@@ -16,6 +16,8 @@ from .modelo import BaseDeConocimiento, Regla
 
 RUTA_POR_DEFECTO = Path(__file__).resolve().parent.parent / "conocimiento" / "diagnostico_pc.json"
 
+CAMPOS_REGLA = {"id", "descripcion", "si", "entonces", "recomendacion", "advertencia", "confianza"}
+
 
 class ErrorDeConocimiento(ValueError):
     def __init__(self, errores: list[str]):
@@ -144,6 +146,18 @@ def _construir_regla(cruda: Any, indice: int, errores: list[str]) -> Regla | Non
     if recomendacion is not None and not isinstance(recomendacion, str):
         errores.append(f"Regla {id_regla}: 'recomendacion' debe ser texto")
 
+    advertencia = cruda.get("advertencia")
+    if advertencia is not None:
+        if not isinstance(advertencia, str) or not advertencia.strip():
+            errores.append(f"Regla {id_regla}: 'advertencia' debe ser texto")
+        elif recomendacion is None:
+            errores.append(f"Regla {id_regla}: 'advertencia' solo tiene sentido junto a una 'recomendacion'")
+
+    desconocidos = sorted(set(cruda) - CAMPOS_REGLA)
+    if desconocidos:
+        errores.append(f"Regla {id_regla}: campos desconocidos {desconocidos} "
+                       f"(permitidos: {sorted(CAMPOS_REGLA)})")
+
     if len(errores) > antes:
         return None
     return Regla(
@@ -153,6 +167,7 @@ def _construir_regla(cruda: Any, indice: int, errores: list[str]) -> Regla | Non
         conclusion=cruda["entonces"],
         confianza=float(confianza),
         recomendacion=recomendacion,
+        advertencia=advertencia,
     )
 
 

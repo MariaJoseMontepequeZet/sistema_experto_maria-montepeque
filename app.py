@@ -92,6 +92,8 @@ def barra_lateral(r: dict[str, bool | None]) -> None:
                 st.markdown(f"{VALORES[valor]} · {BASE.preguntas[hecho]}")
 
         st.divider()
+        st.caption("⚠️ **Aviso:** este sistema orienta, no reemplaza a un técnico. "
+                   "Apaga y desconecta el equipo antes de abrirlo.")
         st.caption(f"[Código fuente en GitHub]({REPOSITORIO})")
 
 
@@ -146,12 +148,16 @@ def mostrar_resultado(r: dict[str, bool | None]) -> None:
             st.success(f"### {principal.descripcion}\nCerteza: **{principal.certeza * 100:.0f}%**")
             for rec in principal.recomendaciones:
                 st.markdown(f"👉 {rec}")
+            for adv in principal.advertencias:
+                st.warning(adv, icon="⚠️")
             if otros:
                 st.subheader("Otros diagnósticos posibles")
                 for dg in otros:
                     st.progress(dg.certeza, text=f"{dg.descripcion} · {dg.certeza * 100:.0f}%")
                     for rec in dg.recomendaciones:
                         st.caption(f"👉 {rec}")
+                    for adv in dg.advertencias:
+                        st.caption(f"⚠️ {adv}")
         st.button("🔄 Nueva consulta", on_click=reiniciar, type="primary")
 
     with tab_razon:

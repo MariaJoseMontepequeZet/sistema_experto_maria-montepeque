@@ -30,6 +30,7 @@ class TestApp(unittest.TestCase):
         self.clic("No")   # ¿arranca?
         self.clic("No")   # ¿luces LED?
         self.assertIn("Fuente de poder dañada", self.app.success[0].value)
+        self.assertIn("Nunca abras la fuente", self.app.warning[0].value)
         self.assertEqual(len(self.app.tabs), 4)
 
     def test_deshacer_vuelve_a_la_pregunta_anterior(self):

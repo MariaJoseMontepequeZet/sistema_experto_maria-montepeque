@@ -1,0 +1,32 @@
+[project]
+name = "sistema-experto-diagnostico-pc"
+version = "1.3.0"
+description = "Sistema experto basado en reglas para diagnosticar fallas de computadoras, con encadenamiento hacia adelante y hacia atrás."
+readme = "readme.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "María José Montepeque" }]
+requires-python = ">=3.10"
+dependencies = []   # el motor y la consola no necesitan dependencias
+keywords = ["sistema experto", "motor de inferencia", "diagnóstico", "encadenamiento hacia adelante"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Natural Language :: Spanish",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+web = ["streamlit>=1.50"]
+
+[project.urls]
+Demo = "https://diagnostico-pc-sistema-experto.streamlit.app/"
+Repositorio = "https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/W: estilo PEP 8 · F: errores (imports sin usar, nombres indefinidos) · I: orden de imports
+# B: bugs frecuentes · UP: sintaxis moderna · SIM: simplificaciones
+select = ["E", "W", "F", "I", "B", "UP", "SIM"]

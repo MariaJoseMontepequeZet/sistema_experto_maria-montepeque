@@ -71,6 +71,17 @@ class TestBaseDeConocimiento(unittest.TestCase):
         datos["reglas"][-1]["si"]["rendimiento_degradado"] = False
         self.assertIn("niega el hecho derivado", self._errores(datos))
 
+    def test_detecta_campos_desconocidos(self):
+        datos = self._datos()
+        datos["reglas"][0]["advertancia"] = "typo"
+        self.assertIn("campos desconocidos ['advertancia']", self._errores(datos))
+
+    def test_advertencia_requiere_recomendacion(self):
+        datos = self._datos()
+        regla_intermedia = next(r for r in datos["reglas"] if "recomendacion" not in r)
+        regla_intermedia["advertencia"] = "cuidado"
+        self.assertIn("solo tiene sentido junto a una 'recomendacion'", self._errores(datos))
+
     def test_detecta_pregunta_sin_uso(self):
         datos = self._datos()
         datos["hechos"]["huerfano"] = {"pregunta": "¿?"}
@@ -88,6 +99,15 @@ class TestEncadenamientoHaciaAdelante(unittest.TestCase):
         inferencia = encadenar_hacia_adelante(BASE, respuestas())
         self.assertEqual(inferencia.principal.hecho, "falla_fuente")
         self.assertAlmostEqual(inferencia.principal.certeza, 0.92)
+        [advertencia] = inferencia.principal.advertencias
+        self.assertIn("Nunca abras la fuente", advertencia)
+
+    def test_diagnosticos_que_abren_el_equipo_tienen_advertencia(self):
+        abre_equipo = ("falla_fuente", "falla_ram", "falla_video", "sobrecalentamiento",
+                       "pila_bios_agotada")
+        for regla in BASE.reglas:
+            if regla.conclusion in abre_equipo:
+                self.assertTrue(regla.advertencia, f"{regla.id} no tiene advertencia")
 
     def test_encadena_hechos_intermedios(self):
         # enciende + sin video → I01 → arranque_sin_video → R02

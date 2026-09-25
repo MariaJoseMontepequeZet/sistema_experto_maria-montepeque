@@ -44,6 +44,11 @@ class Diagnostico:
     def recomendaciones(self) -> list[str]:
         return [d.regla.recomendacion for d in self.disparos if d.regla.recomendacion]
 
+    @property
+    def advertencias(self) -> list[str]:
+        return list(dict.fromkeys(d.regla.advertencia for d in self.disparos
+                                  if d.regla.advertencia))
+
 
 @dataclass
 class Inferencia:

@@ -83,7 +83,7 @@ class TestConsultaDinamica(unittest.TestCase):
             esperado = diagnosticos(respuestas)
             sin_preguntar = [h for h in HECHOS if h not in respuestas]
             for valores in itertools.product((False, True), repeat=len(sin_preguntar)):
-                verdad = {**respuestas, **dict(zip(sin_preguntar, valores))}
+                verdad = {**respuestas, **dict(zip(sin_preguntar, valores, strict=True))}
                 self.assertEqual(esperado, diagnosticos(verdad), verdad)
                 casos += 1
         self.assertEqual(casos, 2 ** len(HECHOS))
