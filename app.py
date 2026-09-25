@@ -13,6 +13,7 @@ import json
 import streamlit as st
 
 from sistema_experto.conocimiento import cargar
+from sistema_experto.modelo import NUMERO, OPCION, Valor
 from sistema_experto.motor import (
     CONTRADICHA,
     CUMPLIDA,
@@ -28,7 +29,7 @@ from sistema_experto.motor import (
 from sistema_experto.visualizacion import dot_razonamiento, dot_red
 
 REPOSITORIO = "https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque"
-VALORES = {True: "✅ sí", False: "❌ no", None: "❔ no sé"}
+ICONOS = {True: "✅", False: "❌", None: "❔"}
 
 st.set_page_config(page_title="Diagnóstico de PC", page_icon="🖥️", layout="centered")
 
@@ -43,12 +44,18 @@ BASE = base_de_conocimiento()
 
 # ── Estado de la sesión ───────────────────────────────────────
 
-def respuestas() -> dict[str, bool | None]:
+def respuestas() -> dict[str, Valor]:
     return st.session_state.setdefault("respuestas", {})
 
 
-def responder(hecho: str, valor: bool | None) -> None:
+def responder(hecho: str, valor: Valor) -> None:
     respuestas()[hecho] = valor
+
+
+def responder_numero(hecho: str, clave: str) -> None:
+    """Toma el número escrito en el campo `clave` al momento del clic."""
+    if st.session_state.get(clave) is not None:
+        responder(hecho, float(st.session_state[clave]))
 
 
 def deshacer() -> None:
@@ -61,7 +68,7 @@ def reiniciar() -> None:
     st.session_state.respuestas = {}
 
 
-def proxima_pregunta(r: dict[str, bool | None]) -> Pregunta | None:
+def proxima_pregunta(r: dict[str, Valor]) -> Pregunta | None:
     if st.session_state.get("completo"):
         faltan = [h for h in BASE.preguntas if h not in r]
         return pregunta_sobre(BASE, r, faltan[0]) if faltan else None
@@ -70,7 +77,7 @@ def proxima_pregunta(r: dict[str, bool | None]) -> Pregunta | None:
 
 # ── Barra lateral ─────────────────────────────────────────────
 
-def barra_lateral(r: dict[str, bool | None]) -> None:
+def barra_lateral(r: dict[str, Valor]) -> None:
     with st.sidebar:
         st.header("🧠 ¿Cómo funciona?")
         st.markdown(
@@ -89,7 +96,9 @@ def barra_lateral(r: dict[str, bool | None]) -> None:
         if r:
             st.subheader("Tus respuestas")
             for hecho, valor in r.items():
-                st.markdown(f"{VALORES[valor]} · {BASE.preguntas[hecho]}")
+                # se comprueba el tipo antes: 1.0 == True, y un número no debe verse como "sí"
+                icono = ICONOS[valor] if valor is None or isinstance(valor, bool) else "🔹"
+                st.markdown(f"{icono} {BASE.preguntas[hecho]} **{BASE.formatear(hecho, valor)}**")
 
         st.divider()
         st.caption("⚠️ **Aviso:** este sistema orienta, no reemplaza a un técnico. "
@@ -99,7 +108,7 @@ def barra_lateral(r: dict[str, bool | None]) -> None:
 
 # ── Consulta ──────────────────────────────────────────────────
 
-def mostrar_pregunta(pregunta: Pregunta, r: dict[str, bool | None]) -> None:
+def mostrar_pregunta(pregunta: Pregunta, r: dict[str, Valor]) -> None:
     abiertas = hipotesis_abiertas(BASE, r)
     diagnosticos = sum(1 for regla in BASE.reglas if regla.es_diagnostico)
 
@@ -107,15 +116,39 @@ def mostrar_pregunta(pregunta: Pregunta, r: dict[str, bool | None]) -> None:
     col1.metric("Pregunta", len(r) + 1)
     col2.metric("Hipótesis abiertas", f"{len(abiertas)} de {diagnosticos}")
 
+    entrada = pregunta.entrada
     with st.container(border=True):
         st.subheader(pregunta.texto)
-        si, no, no_se = st.columns(3)
-        si.button("Sí", on_click=responder, args=(pregunta.hecho, True),
-                  type="primary", width="stretch")
-        no.button("No", on_click=responder, args=(pregunta.hecho, False),
-                  width="stretch")
-        no_se.button("No sé", on_click=responder, args=(pregunta.hecho, None),
-                     width="stretch")
+        if entrada.ayuda:
+            st.caption(f"💡 {entrada.ayuda}")
+
+        if entrada.tipo == OPCION:
+            for valor, etiqueta in entrada.opciones:
+                st.button(etiqueta, on_click=responder, args=(pregunta.hecho, valor),
+                          key=f"opcion:{pregunta.hecho}:{valor}", width="stretch")
+            st.button("No sé", on_click=responder, args=(pregunta.hecho, None), width="stretch")
+
+        elif entrada.tipo == NUMERO:
+            clave = f"numero:{pregunta.hecho}"
+            st.number_input(
+                f"Valor{' en ' + entrada.unidad if entrada.unidad else ''}",
+                min_value=entrada.minimo, max_value=entrada.maximo, value=None,
+                step=1.0, format="%g", key=clave, placeholder="Escribe el valor",
+            )
+            responder_col, no_se = st.columns(2)
+            responder_col.button("Responder", on_click=responder_numero, args=(pregunta.hecho, clave),
+                                 type="primary", disabled=st.session_state.get(clave) is None,
+                                 width="stretch")
+            no_se.button("No sé", on_click=responder, args=(pregunta.hecho, None), width="stretch")
+
+        else:
+            si, no, no_se = st.columns(3)
+            si.button("Sí", on_click=responder, args=(pregunta.hecho, True),
+                      type="primary", width="stretch")
+            no.button("No", on_click=responder, args=(pregunta.hecho, False),
+                      width="stretch")
+            no_se.button("No sé", on_click=responder, args=(pregunta.hecho, None),
+                         width="stretch")
 
     with st.expander("🤔 ¿Por qué me preguntas esto?"):
         if pregunta.hipotesis:
@@ -130,7 +163,7 @@ def mostrar_pregunta(pregunta: Pregunta, r: dict[str, bool | None]) -> None:
 
 # ── Resultados ────────────────────────────────────────────────
 
-def mostrar_resultado(r: dict[str, bool | None]) -> None:
+def mostrar_resultado(r: dict[str, Valor]) -> None:
     inferencia = encadenar_hacia_adelante(BASE, r)
     diagnosticos = inferencia.diagnosticos
 
@@ -167,10 +200,10 @@ def mostrar_resultado(r: dict[str, bool | None]) -> None:
             elegido = st.selectbox(
                 "Diagnóstico", diagnosticos, format_func=lambda dg: dg.descripcion,
             )
-            st.graphviz_chart(dot_razonamiento(inferencia, elegido.hecho))
+            st.graphviz_chart(dot_razonamiento(inferencia, elegido.hecho, BASE))
             for d in inferencia.justificacion(elegido.hecho):
-                condiciones = ", ".join(f"`{h}` = {'sí' if v else 'no'}"
-                                        for h, v in d.regla.condiciones.items())
+                condiciones = ", ".join(f"`{h}` = {BASE.describir(h, c)}"
+                                        for h, c in d.regla.condiciones.items())
                 st.markdown(f"**Ciclo {d.ciclo} · [{d.regla.id}] {d.regla.descripcion}**  \n"
                             f"SI {condiciones} ENTONCES `{d.regla.conclusion}` "
                             f"({d.certeza * 100:.0f}%)")
@@ -212,7 +245,7 @@ def lineas_analisis(analisis: AnalisisRegla, nivel: int = 0) -> list[str]:
               f"{regla.confianza * 100:.0f}%) — {estado}"]
     for c in analisis.condiciones:
         simbolo = {CUMPLIDA: "✅", CONTRADICHA: "❌"}.get(c.estado, "❔")
-        lineas.append(f"{sangria}    - {simbolo} `{c.hecho}` = {'sí' if c.esperado else 'no'}")
+        lineas.append(f"{sangria}    - {simbolo} `{c.hecho}` = {BASE.describir(c.hecho, c.esperado)}")
         for sub in c.subobjetivos:
             lineas.extend(lineas_analisis(sub, nivel + 2))
     return lineas
