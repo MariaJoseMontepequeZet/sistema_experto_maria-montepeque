@@ -15,14 +15,48 @@ Para agregar o corregir un diagnóstico **no hace falta programar**: solo editar
 
 ### `hechos`: lo que se le pregunta al usuario
 
-Cada hecho de entrada tiene un nombre (en `snake_case`, sin tildes) y su pregunta:
+Cada hecho de entrada tiene un nombre (en `snake_case`, sin tildes), su pregunta y un **tipo de
+respuesta**. Todos admiten además la respuesta **"no sé"**.
+
+| Tipo | Cuándo usarlo | Campos extra |
+|---|---|---|
+| `si_no` (por defecto) | La respuesta es sí o no | — |
+| `opcion` | Hay varias respuestas posibles y excluyentes | `opciones`: `{valor: etiqueta}`, al menos 2 |
+| `numero` | Un valor medido | `unidad`, `minimo`, `maximo` (opcionales) |
+
+Cualquier tipo puede llevar `ayuda`: una explicación de cómo averiguar la respuesta, que se muestra
+junto a la pregunta.
 
 ```json
-"calor_excesivo": { "pregunta": "¿El chasis está muy caliente al tacto?" }
+"calor_excesivo": { "pregunta": "¿El chasis está muy caliente al tacto?" },
+
+"tipo_equipo": {
+  "pregunta": "¿Qué tipo de equipo es?",
+  "tipo": "opcion",
+  "opciones": { "escritorio": "Computadora de escritorio", "laptop": "Laptop" }
+},
+
+"temperatura_cpu": {
+  "pregunta": "¿Qué temperatura marca el procesador cuando el equipo está en uso?",
+  "tipo": "numero", "unidad": "°C", "minimo": 0, "maximo": 125,
+  "ayuda": "Puedes verla con HWMonitor o Core Temp."
+}
 ```
 
-- La pregunta debe poder responderse con **sí / no / no sé**.
-- Formúlala en positivo (`hay_video`, no `sin_video`). La negación se expresa en las reglas.
+- Formula las preguntas de sí/no en positivo (`hay_video`, no `sin_video`). La negación se expresa en las reglas.
+- **Prefiere una opción múltiple a varias preguntas de sí/no** cuando las respuestas son excluyentes. Por ejemplo, un solo `patron_pitidos` distingue RAM, video y monitor, mientras que un simple "¿hay pitidos?" confundía un arranque normal (un pitido corto) con una falla de RAM.
+- Usa preguntas numéricas cuando un umbral objetivo sea más confiable que una impresión ("¿el procesador supera los 90 °C?" en lugar de "¿está muy caliente?").
+
+### Condiciones según el tipo del hecho
+
+| Tipo del hecho | Condición en `si` | Significa |
+|---|---|---|
+| `si_no` | `true` / `false` | Debe ser sí / debe ser no |
+| `opcion` | `"laptop"` | Debe ser esa opción |
+| `opcion` | `["ninguno", "uno_corto"]` | Debe ser cualquiera de esas opciones |
+| `numero` | `{">=": 90}` | Debe cumplir la comparación. Operadores: `>`, `>=`, `<`, `<=` |
+| `numero` | `{">=": 80, "<": 90}` | Debe cumplir **todas** las comparaciones (un rango) |
+| hecho intermedio | `true` | Debe haberse deducido |
 
 ### `reglas`: SI condiciones ENTONCES conclusión
 
@@ -42,7 +76,7 @@ Cada hecho de entrada tiene un nombre (en `snake_case`, sin tildes) y su pregunt
 |---|---|---|
 | `id` | ✅ | Identificador único. Convención: `R01`, `R02`… para diagnósticos; `I01`, `I02`… para reglas intermedias |
 | `descripcion` | ✅ | Nombre legible del diagnóstico, se muestra al usuario |
-| `si` | ✅ | Condiciones que deben cumplirse **todas** (AND). `true` = el hecho debe ser verdadero, `false` = debe ser falso |
+| `si` | ✅ | Condiciones que deben cumplirse **todas** (AND), según la tabla anterior |
 | `entonces` | ✅ | Hecho que se concluye cuando la regla se dispara |
 | `confianza` | ✅ | Qué tan seguro es el diagnóstico si se cumplen las condiciones, entre 0 y 1 |
 | `recomendacion` | — | Qué hacer. **Si la regla la tiene, es un diagnóstico final**; si no, produce un hecho intermedio |
@@ -82,7 +116,11 @@ Al cargar el archivo, el sistema revisa todo y **muestra todos los errores junto
 - confianza fuera de rango,
 - dependencias circulares entre hechos,
 - preguntas que ninguna regla usa,
-- advertencias en reglas que no tienen recomendación.
+- advertencias en reglas que no tienen recomendación,
+- condiciones que no corresponden al tipo del hecho (por ejemplo, `true` sobre una pregunta de opción),
+- opciones que el hecho no tiene (por ejemplo, `"tablet"` si solo existen escritorio y laptop),
+- rangos numéricos imposibles (por ejemplo, `{">": 90, "<": 80}`) u operadores desconocidos,
+- campos que no corresponden al tipo del hecho (por ejemplo, `unidad` en una pregunta de sí/no).
 
 Para comprobar tus cambios:
 
