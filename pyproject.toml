@@ -1,6 +1,6 @@
 [project]
 name = "sistema-experto-diagnostico-pc"
-version = "1.3.0"
+version = "1.4.0"
 description = "Sistema experto basado en reglas para diagnosticar fallas de computadoras, con encadenamiento hacia adelante y hacia atrás."
 readme = "readme.md"
 license = "MIT"
