@@ -4,6 +4,28 @@ Todos los cambios relevantes del proyecto se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.5.0] - 2026-09-26
+
+### Agregado
+- Evidencia a favor y en contra: las reglas aceptan confianza entre -1 y 1 y todas las evidencias
+  sobre un diagnóstico se combinan con los factores de certeza de MYCIN.
+- Diagnósticos descartados: los que una regla sugirió pero la evidencia en contra dejó bajo el umbral
+  (0.2) se muestran aparte, con el motivo, en la consola y en la web.
+- Desglose "¿Por qué X % de certeza?" en la web y en la consola; la evidencia en contra se dibuja en
+  rojo en los diagramas.
+- Conocimiento: la temperatura normal del procesador resta certeza al sobrecalentamiento; el
+  ventilador al máximo la refuerza; si otros dispositivos tampoco se conectan, se descarta la falla del
+  adaptador de red y se diagnostica un problema del router o del proveedor.
+- Validación de la evidencia: sin recomendación, solo sobre diagnósticos, confianza distinta de 0.
+
+### Cambiado
+- El motor completa cada nivel de hechos antes de pasar al siguiente: toda la evidencia de un hecho
+  se reúne antes de usarlo, y el resultado no depende del orden de las reglas.
+- La consulta dinámica también pregunta por la evidencia de los diagnósticos que siguen siendo posibles.
+- La prueba exhaustiva usa un valor por región de cada umbral numérico y se ejecuta en el CI
+  (localmente con `PRUEBAS_EXHAUSTIVAS=1`).
+- `CONTRIBUTING.md`: reiniciar la demo en Streamlit Cloud después de publicar una versión.
+
 ## [1.4.0] - 2026-09-25
 
 ### Agregado
@@ -75,6 +97,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Cambiado
 - Arquitectura separada en conocimiento, motor e interfaz; hechos booleanos con negación.
 
+[1.5.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.2.0...v1.2.1
