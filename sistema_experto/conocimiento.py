@@ -104,6 +104,17 @@ def validar(base: BaseDeConocimiento) -> list[str]:
             elif condicion.esperado is not True:
                 errores.append(f"{r.id}: '{hecho}' es un hecho derivado; la condición solo puede ser true")
 
+    usados_como_condicion = {h for r in base.reglas for h in r.condiciones}
+    for r in base.reglas:
+        if not r.en_contra:
+            continue
+        if r.conclusion not in base.hechos_diagnostico:
+            errores.append(f"{r.id}: la evidencia en contra solo puede apuntar a un diagnóstico "
+                           f"(una regla con recomendación); '{r.conclusion}' no lo es")
+        elif r.conclusion in usados_como_condicion:
+            errores.append(f"{r.id}: '{r.conclusion}' se usa como condición de otra regla; "
+                           "no puede recibir evidencia en contra")
+
     # Pregunta de reflexión 11: condiciones idénticas generan ambigüedad.
     por_condiciones: dict[frozenset, str] = {}
     for r in base.reglas:
@@ -151,8 +162,13 @@ def _construir_regla(cruda: Any, indice: int, errores: list[str]) -> Regla | Non
                 errores.append(f"Regla {id_regla}: condición sobre '{hecho}': {e}")
 
     confianza = cruda.get("confianza")
-    if isinstance(confianza, bool) or not isinstance(confianza, (int, float)) or not 0 < confianza <= 1:
-        errores.append(f"Regla {id_regla}: 'confianza' debe ser un número en (0, 1]")
+    if (isinstance(confianza, bool) or not isinstance(confianza, (int, float))
+            or not -1 <= confianza <= 1 or confianza == 0):
+        errores.append(f"Regla {id_regla}: 'confianza' debe ser un número entre -1 y 1, distinto de 0 "
+                       "(negativo = evidencia en contra)")
+    elif confianza < 0 and ("recomendacion" in cruda or "advertencia" in cruda):
+        errores.append(f"Regla {id_regla}: una evidencia en contra (confianza negativa) no lleva "
+                       "'recomendacion' ni 'advertencia'")
 
     recomendacion = cruda.get("recomendacion")
     if recomendacion is not None and not isinstance(recomendacion, str):

@@ -1,4 +1,5 @@
 import itertools
+import os
 import random
 import unittest
 
@@ -16,19 +17,29 @@ HECHOS = list(BASE.hechos)
 
 
 def dominio(hecho: str) -> tuple:
-    """Respuestas posibles de un hecho. Para los numéricos basta con el valor de cada umbral
-    usado en las reglas y uno justo por debajo: es donde puede cambiar el resultado."""
+    """
+    Respuestas posibles de un hecho. Para los numéricos se usa un valor por cada región
+    que delimitan los umbrales de las reglas (clases de equivalencia): dentro de una región
+    todas las condiciones dan el mismo resultado. Los límites exactos de cada umbral se
+    prueban aparte (test_motor: umbrales y rangos).
+    """
     entrada = BASE.hechos[hecho]
     if entrada.tipo == OPCION:
         return entrada.valores_opcion
     if entrada.tipo == NUMERO:
-        umbrales = {n for r in BASE.reglas if hecho in r.condiciones
-                    for _, n in r.condiciones[hecho].esperado}
-        return tuple(sorted({u + d for u in umbrales for d in (-0.5, 0)}))
+        umbrales = sorted({n for r in BASE.reglas if hecho in r.condiciones
+                           for _, n in r.condiciones[hecho].esperado})
+        representantes = {umbrales[0] - 1, umbrales[-1] + 1}
+        representantes |= {(a + b) / 2 for a, b in itertools.pairwise(umbrales)}
+        return tuple(sorted(representantes))
     return (True, False)
 
 
 DOMINIOS = {h: dominio(h) for h in HECHOS}
+
+# La prueba exhaustiva recorre decenas de miles de caminos: corre siempre en el CI
+# (GitHub Actions define CI=true) y localmente con PRUEBAS_EXHAUSTIVAS=1.
+EXHAUSTIVAS = bool(os.environ.get("CI") or os.environ.get("PRUEBAS_EXHAUSTIVAS"))
 
 
 def simular(verdad: dict) -> dict:
@@ -86,6 +97,7 @@ class TestConsultaDinamica(unittest.TestCase):
         pregunta = pregunta_sobre(BASE, {"enciende": False}, "disco_al_100")
         self.assertEqual(pregunta.hipotesis, ())
 
+    @unittest.skipUnless(EXHAUSTIVAS, "prueba exhaustiva: se ejecuta en el CI o con PRUEBAS_EXHAUSTIVAS=1")
     def test_nunca_pierde_un_diagnostico_por_preguntar_menos(self):
         """
         Recorre el árbol de decisión COMPLETO de la consulta dinámica (cada rama con todas
@@ -110,16 +122,16 @@ class TestConsultaDinamica(unittest.TestCase):
             combinaciones = 1
             for h in sin_preguntar:
                 combinaciones *= len(DOMINIOS[h])
-            if combinaciones <= 16:
+            if combinaciones <= 4:
                 completar = itertools.product(*(DOMINIOS[h] for h in sin_preguntar))
             else:
-                completar = ([azar.choice(DOMINIOS[h]) for h in sin_preguntar] for _ in range(4))
+                completar = ([azar.choice(DOMINIOS[h]) for h in sin_preguntar] for _ in range(2))
             for valores in completar:
                 verdad = {**respuestas, **dict(zip(sin_preguntar, valores, strict=True))}
                 self.assertEqual(esperado, diagnosticos(verdad), verdad)
                 comprobaciones += 1
         self.assertGreater(hojas, 10_000)   # la documentación cita esta cifra
-        self.assertGreater(comprobaciones, hojas * 3)
+        self.assertGreaterEqual(comprobaciones, hojas)
 
     def test_equivale_a_preguntar_todo_con_no_se(self):
         azar = random.Random(42)

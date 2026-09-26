@@ -3,7 +3,8 @@ Estructuras de datos del sistema experto.
 
 - Hecho             : un hecho de entrada (lo que se le pregunta al usuario) y su tipo de respuesta.
 - Condicion         : lo que una regla exige de un hecho (sí/no, una opción o un rango numérico).
-- Regla             : una unidad de conocimiento "SI condiciones ENTONCES hecho".
+- Regla             : una unidad de conocimiento "SI condiciones ENTONCES hecho", con una
+                      confianza entre -1 y 1 (negativa = evidencia en contra).
 - BaseDeConocimiento: hechos de entrada + reglas.
 - BaseDeHechos      : memoria de trabajo de UNA consulta (valores, certeza y origen).
 """
@@ -25,6 +26,9 @@ TIPOS = (SI_NO, OPCION, NUMERO)
 OPERADORES = {">": operator.gt, ">=": operator.ge, "<": operator.lt, "<=": operator.le}
 SIMBOLOS = {">": ">", ">=": "≥", "<": "<", "<=": "≤"}
 
+# Certeza mínima para dar un hecho derivado por establecido (convención de MYCIN).
+UMBRAL_CERTEZA = 0.2
+
 # Valor de una respuesta: True/False (si_no), str (opcion), float (numero) o None (no sé)
 Valor = bool | str | float | None
 
@@ -35,6 +39,22 @@ def es_numero(valor: Any) -> bool:
 
 def formatear_numero(numero: float) -> str:
     return f"{numero:g}"
+
+
+def combinar_certezas(a: float, b: float) -> float:
+    """
+    Combina dos evidencias independientes sobre el mismo hecho (factores de certeza de MYCIN):
+      ambas a favor   → a + b·(1 − a)
+      ambas en contra → a + b·(1 + a)
+      signos opuestos → (a + b) / (1 − min(|a|, |b|))
+    El resultado siempre queda entre -1 y 1, y no depende del orden.
+    """
+    if a >= 0 and b >= 0:
+        return a + b * (1 - a)
+    if a < 0 and b < 0:
+        return a + b * (1 + a)
+    denominador = 1 - min(abs(a), abs(b))
+    return (a + b) / denominador if denominador else 0.0
 
 
 @dataclass(frozen=True)
@@ -165,9 +185,13 @@ class Regla:
 
     @property
     def es_diagnostico(self) -> bool:
-        """Las reglas con recomendación son diagnósticos finales;
-        las demás solo derivan hechos intermedios."""
+        """Las reglas con recomendación son diagnósticos finales; las demás derivan
+        hechos intermedios o aportan evidencia a favor o en contra de un diagnóstico."""
         return self.recomendacion is not None
+
+    @property
+    def en_contra(self) -> bool:
+        return self.confianza < 0
 
     @property
     def especificidad(self) -> int:
@@ -205,6 +229,38 @@ class BaseDeConocimiento:
     def hechos_derivados(self) -> set[str]:
         return set(self._por_conclusion)
 
+    @cached_property
+    def hechos_diagnostico(self) -> set[str]:
+        """Hechos que concluye al menos una regla con recomendación."""
+        return {r.conclusion for r in self.reglas if r.es_diagnostico}
+
+    def evidencias_de(self, hecho: str) -> list[Regla]:
+        """Reglas sin recomendación que aportan evidencia (a favor o en contra) a un diagnóstico."""
+        return [r for r in self.reglas_que_concluyen(hecho) if not r.es_diagnostico]
+
+    @cached_property
+    def niveles(self) -> dict[str, int]:
+        """
+        Nivel de cada hecho derivado: 1 + el mayor nivel de los hechos derivados de los que
+        depende (los de entrada son nivel 0). El motor completa un nivel antes de pasar al
+        siguiente, así toda la evidencia de un hecho se reúne antes de usarlo.
+        """
+        niveles: dict[str, int] = {}
+
+        def nivel(hecho: str, camino: frozenset[str] = frozenset()) -> int:
+            if hecho not in self._por_conclusion or hecho in camino:
+                return 0
+            if hecho not in niveles:
+                niveles[hecho] = 1 + max(
+                    (nivel(h, camino | {hecho}) for r in self._por_conclusion[hecho] for h in r.condiciones),
+                    default=0,
+                )
+            return niveles[hecho]
+
+        for hecho in self._por_conclusion:
+            nivel(hecho)
+        return niveles
+
     def formatear(self, hecho: str, valor: Valor) -> str:
         if hecho in self.hechos:
             return self.hechos[hecho].formatear(valor)
@@ -238,6 +294,22 @@ class BaseDeHechos:
             self.valores[hecho] = valor
             self.certeza[hecho] = certeza
             self.origen[hecho] = [origen]
+
+    def agregar_evidencia(self, hecho: str, certeza: float, origen: str) -> None:
+        """
+        Suma una evidencia (a favor si es positiva, en contra si es negativa) sobre un hecho
+        derivado. El hecho queda establecido mientras su certeza neta supere el umbral.
+        """
+        if hecho in self.certeza:
+            self.certeza[hecho] = combinar_certezas(self.certeza[hecho], certeza)
+            self.origen[hecho].append(origen)
+        else:
+            self.certeza[hecho] = certeza
+            self.origen[hecho] = [origen]
+        if self.certeza[hecho] > UMBRAL_CERTEZA:
+            self.valores[hecho] = True
+        else:
+            self.valores.pop(hecho, None)
 
     def valor(self, hecho: str) -> Valor:
         return self.valores.get(hecho)

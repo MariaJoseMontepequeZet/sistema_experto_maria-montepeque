@@ -12,7 +12,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from functools import cached_property
 
-from .modelo import BaseDeConocimiento, BaseDeHechos, Condicion, Hecho, Regla, Valor
+from .modelo import UMBRAL_CERTEZA, BaseDeConocimiento, BaseDeHechos, Condicion, Hecho, Regla, Valor
 
 # hecho de entrada -> True/False (sí/no), una opción, un número, o None (no sé)
 Respuestas = Mapping[str, Valor]
@@ -27,19 +27,31 @@ class Disparo:
     """Registro de una regla ejecutada en un ciclo del motor."""
     ciclo: int
     regla: Regla
-    certeza: float                    # confianza de la regla × certeza de sus premisas
+    certeza: float                    # confianza de la regla × certeza de sus premisas (negativa = en contra)
     conflict_set: tuple[str, ...]     # reglas candidatas en ese ciclo
 
 
 @dataclass(frozen=True)
 class Diagnostico:
     hecho: str
-    certeza: float                    # combinada si varias reglas llegan al mismo hecho
-    disparos: tuple[Disparo, ...]
+    certeza: float                    # certeza neta: todas las evidencias combinadas (MYCIN)
+    disparos: tuple[Disparo, ...]     # todas las reglas que aportaron evidencia, a favor y en contra
 
     @property
     def descripcion(self) -> str:
-        return self.disparos[0].regla.descripcion
+        return next(d.regla.descripcion for d in self.disparos if d.regla.es_diagnostico)
+
+    @property
+    def a_favor(self) -> list[Disparo]:
+        return [d for d in self.disparos if d.certeza > 0]
+
+    @property
+    def en_contra(self) -> list[Disparo]:
+        return [d for d in self.disparos if d.certeza < 0]
+
+    @property
+    def establecido(self) -> bool:
+        return self.certeza > UMBRAL_CERTEZA
 
     @property
     def recomendaciones(self) -> list[str]:
@@ -56,22 +68,31 @@ class Inferencia:
     hechos: BaseDeHechos
     disparos: list[Disparo] = field(default_factory=list)
 
-    @property
-    def diagnosticos(self) -> list[Diagnostico]:
-        """Diagnósticos ordenados de mayor a menor certeza (desempate: especificidad)."""
+    @cached_property
+    def _evaluados(self) -> list[Diagnostico]:
+        """Cada diagnóstico al que llegó alguna regla con recomendación, con toda su evidencia."""
+        con_recomendacion = {d.regla.conclusion for d in self.disparos if d.regla.es_diagnostico}
         por_hecho: dict[str, list[Disparo]] = {}
         for d in self.disparos:
-            if d.regla.es_diagnostico:
+            if d.regla.conclusion in con_recomendacion:
                 por_hecho.setdefault(d.regla.conclusion, []).append(d)
-        diagnosticos = [
-            Diagnostico(hecho, self.hechos.certeza[hecho], tuple(ds))
-            for hecho, ds in por_hecho.items()
-        ]
+        evaluados = [Diagnostico(hecho, self.hechos.certeza[hecho], tuple(ds))
+                     for hecho, ds in por_hecho.items()]
         return sorted(
-            diagnosticos,
+            evaluados,
             key=lambda dg: (dg.certeza, max(d.regla.especificidad for d in dg.disparos)),
             reverse=True,
         )
+
+    @property
+    def diagnosticos(self) -> list[Diagnostico]:
+        """Diagnósticos cuya certeza neta supera el umbral, de mayor a menor certeza."""
+        return [dg for dg in self._evaluados if dg.establecido]
+
+    @property
+    def descartados(self) -> list[Diagnostico]:
+        """Diagnósticos que una regla sugirió pero que la evidencia en contra dejó bajo el umbral."""
+        return [dg for dg in self._evaluados if not dg.establecido]
 
     @property
     def principal(self) -> Diagnostico | None:
@@ -101,20 +122,28 @@ def equiparar(reglas: Iterable[Regla], hechos: BaseDeHechos,
     return [r for r in reglas if r.id not in disparadas and hechos.cumple(r.condiciones)]
 
 
-def resolver_conflictos(conflict_set: list[Regla]) -> Regla | None:
-    """Mayor confianza primero; desempate por regla más específica."""
+def resolver_conflictos(conflict_set: list[Regla],
+                        niveles: Mapping[str, int] | None = None) -> Regla | None:
+    """
+    Primero las reglas del nivel más bajo (así toda la evidencia de un hecho se reúne antes
+    de usarlo en otra regla); dentro del nivel, mayor confianza absoluta y luego la regla
+    más específica.
+    """
     if not conflict_set:
         return None
-    return max(conflict_set, key=lambda r: (r.confianza, r.especificidad))
+    niveles = niveles or {}
+    return min(conflict_set,
+               key=lambda r: (niveles.get(r.conclusion, 0), -abs(r.confianza), -r.especificidad))
 
 
 def encadenar_hacia_adelante(base: BaseDeConocimiento,
                              respuestas: Respuestas) -> Inferencia:
     """
     Ciclo reconocer-actuar hasta punto fijo:
-      equiparar → resolver conflictos → disparar (afirmar la conclusión)
-    Los hechos derivados alimentan a otras reglas en ciclos posteriores.
-    Las respuestas "no sé" (None) dejan el hecho como desconocido.
+      equiparar → resolver conflictos → disparar (sumar la evidencia a la conclusión)
+    Los hechos derivados alimentan a otras reglas en ciclos posteriores. Cada disparo suma
+    evidencia a favor o en contra; un hecho derivado queda establecido mientras su certeza
+    neta supere el umbral. Las respuestas "no sé" (None) dejan el hecho como desconocido.
     """
     desconocidos = set(respuestas) - set(base.hechos)
     if desconocidos:
@@ -138,12 +167,12 @@ def encadenar_hacia_adelante(base: BaseDeConocimiento,
     ciclo = 0
     while True:
         conflict_set = equiparar(candidatas, hechos, disparadas)
-        regla = resolver_conflictos(conflict_set)
+        regla = resolver_conflictos(conflict_set, base.niveles)
         if regla is None:
             return inferencia
         ciclo += 1
         certeza = regla.confianza * hechos.certeza_minima(regla.condiciones)
-        hechos.afirmar(regla.conclusion, True, certeza, origen=regla.id)
+        hechos.agregar_evidencia(regla.conclusion, certeza, origen=regla.id)
         disparadas.add(regla.id)
         inferencia.disparos.append(
             Disparo(ciclo, regla, certeza, tuple(r.id for r in conflict_set))
@@ -240,14 +269,33 @@ def hipotesis_abiertas(base: BaseDeConocimiento, respuestas: Respuestas) -> list
     pregunta sin hacer. Los descartados, los ya confirmados y los que solo
     dependen de respuestas "no sé" quedan fuera.
     """
+    return _abiertas(base, respuestas, _Analizador(base, respuestas))
+
+
+def _abiertas(base: BaseDeConocimiento, respuestas: Respuestas,
+              analizar: _Analizador) -> list[AnalisisRegla]:
     abiertas = []
     for regla in base.reglas:
         if not regla.es_diagnostico:
             continue
-        analisis = _analizar(base, regla, respuestas, frozenset())
+        analisis = analizar(regla)
         if any(h not in respuestas for h in analisis.por_preguntar):
             abiertas.append(analisis)
     return abiertas
+
+
+class _Analizador:
+    """Analiza cada regla una sola vez por consulta (el análisis no cambia mientras
+    no cambien las respuestas)."""
+
+    def __init__(self, base: BaseDeConocimiento, respuestas: Respuestas):
+        self.base, self.respuestas = base, respuestas
+        self.cache: dict[str, AnalisisRegla] = {}
+
+    def __call__(self, regla: Regla) -> AnalisisRegla:
+        if regla.id not in self.cache:
+            self.cache[regla.id] = _analizar(self.base, regla, self.respuestas, frozenset())
+        return self.cache[regla.id]
 
 
 def siguiente_pregunta(base: BaseDeConocimiento, respuestas: Respuestas) -> Pregunta | None:
@@ -284,10 +332,22 @@ def pregunta_sobre(base: BaseDeConocimiento, respuestas: Respuestas, hecho: str,
 def _hipotesis_por_hecho(base: BaseDeConocimiento,
                          respuestas: Respuestas) -> dict[str, list[Regla]]:
     interesadas: dict[str, list[Regla]] = {}
-    for analisis in hipotesis_abiertas(base, respuestas):
+    analizar = _Analizador(base, respuestas)
+    for analisis in _abiertas(base, respuestas, analizar):
         for hecho in analisis.por_preguntar:
             if hecho not in respuestas:
                 interesadas.setdefault(hecho, []).append(analisis.regla)
+
+    # Evidencia a favor o en contra de los diagnósticos que todavía son posibles:
+    # puede cambiar su certeza, así que también vale la pena preguntarla.
+    for diagnostico in base.hechos_diagnostico:
+        posibles = [analizar(r) for r in base.reglas_que_concluyen(diagnostico) if r.es_diagnostico]
+        if all(a.descartada for a in posibles):
+            continue
+        for regla in base.evidencias_de(diagnostico):
+            for hecho in analizar(regla).por_preguntar:
+                if hecho not in respuestas:
+                    interesadas.setdefault(hecho, []).append(regla)
     return interesadas
 
 
@@ -296,7 +356,8 @@ def _analizar(base: BaseDeConocimiento, regla: Regla,
     camino = camino | {regla.id}
     estados = []
     for hecho, esperado in regla.condiciones.items():
-        derivadoras = [r for r in base.reglas_que_concluyen(hecho) if r.id not in camino]
+        derivadoras = [r for r in base.reglas_que_concluyen(hecho)
+                       if r.id not in camino and not r.en_contra]
         if not derivadoras:
             estados.append(EstadoCondicion(hecho, esperado, respuestas.get(hecho)))
             continue

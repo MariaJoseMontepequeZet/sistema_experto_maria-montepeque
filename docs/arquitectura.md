@@ -39,8 +39,10 @@ Guarda para cada hecho su valor (verdadero, falso o desconocido), su certeza y q
 ### 3. Motor de Inferencia — `motor.py`
 
 - `equiparar()`: devuelve las reglas cuyas condiciones se cumplen y que todavía no se dispararon.
-- `resolver_conflictos()`: elige la de mayor confianza y, si hay empate, la más específica.
-- `encadenar_hacia_adelante()`: repite el ciclo *equiparar → resolver → disparar* hasta que ninguna regla nueva aplica. Cada conclusión se agrega a la base de hechos y puede activar otras reglas. La certeza se propaga por la cadena: `confianza de la regla × certeza mínima de sus condiciones`.
+- `resolver_conflictos()`: primero las reglas del **nivel** más bajo; dentro del nivel, la de mayor confianza absoluta y luego la más específica.
+- `encadenar_hacia_adelante()`: repite el ciclo *equiparar → resolver → disparar* hasta que ninguna regla nueva aplica. Cada disparo suma **evidencia a favor o en contra** de su conclusión, y puede activar otras reglas. La certeza de un disparo es `confianza de la regla × certeza mínima de sus condiciones`; las evidencias sobre un mismo hecho se combinan con los factores de certeza de MYCIN, y el hecho queda establecido mientras su certeza neta supere 0.2.
+
+**¿Por qué niveles?** Un hecho derivado tiene nivel 1 + el mayor nivel de los hechos de los que depende (las respuestas son nivel 0). Completar un nivel antes de pasar al siguiente garantiza que toda la evidencia sobre un hecho se reúna *antes* de usarlo en otra regla. Así el resultado es el mismo sin importar el orden de las reglas en el archivo (una prueba lo verifica mezclando las reglas al azar).
 
 El motor no imprime nada, solo devuelve datos. Por eso se puede testear y se podría conectar a una interfaz web sin cambiarlo.
 

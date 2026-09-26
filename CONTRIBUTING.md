@@ -71,6 +71,9 @@ Cuando `dev` tiene un conjunto de cambios probado y estable:
 2. Integrar con **Create a merge commit** (no Squash: así `dev` y `main` comparten historial
    y el siguiente PR de versión solo muestra lo nuevo).
 3. Etiquetar la versión en `main` (ver [Versiones](#versiones)).
+4. **Reiniciar la demo** en Streamlit Community Cloud (*Manage app → ⋮ → Reboot app*). Al recibir código
+   nuevo, Streamlit recarga `app.py` pero puede conservar en memoria versiones viejas de los módulos de
+   `sistema_experto/`, y la app falla con un `ImportError`. Revisa que el log empiece con la fecha del día.
 
 ### Corrección urgente: `hotfix/*`
 

@@ -74,11 +74,11 @@ junto a la pregunta.
 
 | Campo | Obligatorio | Qué es |
 |---|---|---|
-| `id` | ✅ | Identificador único. Convención: `R01`, `R02`… para diagnósticos; `I01`, `I02`… para reglas intermedias |
+| `id` | ✅ | Identificador único. Convención: `R01`… diagnósticos, `I01`… reglas intermedias, `E01`… evidencias |
 | `descripcion` | ✅ | Nombre legible del diagnóstico, se muestra al usuario |
 | `si` | ✅ | Condiciones que deben cumplirse **todas** (AND), según la tabla anterior |
 | `entonces` | ✅ | Hecho que se concluye cuando la regla se dispara |
-| `confianza` | ✅ | Qué tan seguro es el diagnóstico si se cumplen las condiciones, entre 0 y 1 |
+| `confianza` | ✅ | Entre -1 y 1, distinta de 0. Positiva: cuánto apoya la conclusión; negativa: cuánto la contradice (ver [Evidencia](#evidencia-a-favor-y-en-contra)) |
 | `recomendacion` | — | Qué hacer. **Si la regla la tiene, es un diagnóstico final**; si no, produce un hecho intermedio |
 | `advertencia` | — | Aviso de seguridad. Obligatorio en la práctica si la recomendación implica abrir el equipo o arriesgar datos |
 
@@ -97,6 +97,43 @@ razonamiento y la explicación muestra los pasos intermedios.
 
 > Los hechos intermedios solo pueden usarse como `true` en otras reglas, nunca como `false`.
 
+## Evidencia a favor y en contra
+
+Un diagnóstico no solo se confirma: también se puede **debilitar**. Una regla **sin recomendación** que
+concluye un diagnóstico es *evidencia*: con confianza positiva lo refuerza, con confianza negativa lo
+contradice.
+
+```json
+{
+  "id": "E01",
+  "descripcion": "La temperatura del procesador es normal",
+  "si": { "enciende": true, "temperatura_cpu": { "<": 70 } },
+  "entonces": "sobrecalentamiento",
+  "confianza": -0.6
+}
+```
+
+Todas las evidencias sobre un mismo diagnóstico se combinan con los **factores de certeza de MYCIN**:
+
+| Caso | Fórmula | Ejemplo |
+|---|---|---|
+| Ambas a favor | `a + b × (1 − a)` | 0.9 y 0.3 → 0.93 |
+| Ambas en contra | `a + b × (1 + a)` | −0.5 y −0.5 → −0.75 |
+| Signos opuestos | `(a + b) / (1 − min(│a│, │b│))` | 0.9 y −0.6 → 0.75 |
+
+Un diagnóstico se muestra si su certeza neta **supera 0.2** (el umbral de MYCIN). Si una regla lo sugirió
+pero la evidencia en contra lo dejó por debajo, aparece como **descartado**, con el motivo.
+
+Reglas de uso (el validador las comprueba):
+
+- La evidencia **no lleva** `recomendacion` ni `advertencia`: las aporta la regla principal del diagnóstico.
+- La evidencia en contra solo puede apuntar a un **diagnóstico** (un hecho que concluye alguna regla con
+  recomendación), y ese diagnóstico no puede usarse como condición de otras reglas.
+- La evidencia a favor, por sí sola, **nunca crea un diagnóstico**: solo refuerza uno que ya sugirió una
+  regla con recomendación.
+- La consulta dinámica también pregunta por la evidencia de los diagnósticos que siguen siendo posibles,
+  porque puede cambiar su certeza.
+
 ## Cómo elegir la confianza
 
 | Valor | Cuándo usarlo |
@@ -105,6 +142,9 @@ razonamiento y la explicación muestra los pasos intermedios.
 | 0.75 – 0.89 | Causa más probable, pero hay alternativas razonables |
 | 0.50 – 0.74 | Posible; conviene confirmarlo con una prueba |
 | 1.00 en intermedias | Cuando la regla solo resume hechos (no es una suposición) |
+| 0.20 – 0.40 | Evidencia a favor: un indicio que acompaña, pero no alcanza por sí solo |
+| −0.40 – −0.60 | Evidencia en contra moderada: hace menos probable el diagnóstico |
+| −0.70 – −0.90 | Evidencia en contra fuerte: prácticamente lo descarta |
 
 ## Validación automática
 
@@ -113,7 +153,8 @@ Al cargar el archivo, el sistema revisa todo y **muestra todos los errores junto
 - condiciones que no tienen pregunta ni regla que las produzca,
 - IDs duplicados o campos desconocidos (por ejemplo, un error de tipeo en `advertencia`),
 - dos reglas con exactamente las mismas condiciones,
-- confianza fuera de rango,
+- confianza fuera de rango (debe estar entre -1 y 1, distinta de 0),
+- evidencia en contra con recomendación, sobre algo que no es un diagnóstico, o sobre un diagnóstico que se usa como condición,
 - dependencias circulares entre hechos,
 - preguntas que ninguna regla usa,
 - advertencias en reglas que no tienen recomendación,
