@@ -18,6 +18,7 @@ from sistema_experto.motor import (
     CONTRADICHA,
     CUMPLIDA,
     AnalisisRegla,
+    Diagnostico,
     Pregunta,
     encadenar_hacia_adelante,
     encadenar_hacia_atras,
@@ -154,8 +155,12 @@ def mostrar_pregunta(pregunta: Pregunta, r: dict[str, Valor]) -> None:
         if pregunta.hipotesis:
             st.markdown("Tu respuesta ayuda a confirmar o descartar:")
             for regla in pregunta.hipotesis:
-                st.markdown(f"- **{regla.descripcion}** (`{regla.id}`, confianza "
-                            f"{regla.confianza * 100:.0f}%)")
+                if regla.es_diagnostico:
+                    detalle = f"confianza {regla.confianza * 100:.0f}%"
+                else:
+                    sentido = "en contra" if regla.en_contra else "a favor"
+                    detalle = f"evidencia {sentido} de *{regla.conclusion}*"
+                st.markdown(f"- **{regla.descripcion}** (`{regla.id}`, {detalle})")
         else:
             st.markdown("Ninguna hipótesis abierta depende de esta respuesta; "
                         "se pregunta porque activaste *Hacer todas las preguntas*.")
@@ -174,7 +179,7 @@ def mostrar_resultado(r: dict[str, Valor]) -> None:
 
     with tab_diag:
         if not diagnosticos:
-            st.info("No se encontró ningún diagnóstico con estas respuestas. "
+            st.info("No se llegó a ningún diagnóstico con suficiente certeza. "
                     "Prueba de nuevo o revisa la pestaña *Explorar hipótesis* para ver qué faltó.")
         else:
             principal, *otros = diagnosticos
@@ -183,6 +188,7 @@ def mostrar_resultado(r: dict[str, Valor]) -> None:
                 st.markdown(f"👉 {rec}")
             for adv in principal.advertencias:
                 st.warning(adv, icon="⚠️")
+            mostrar_evidencia(principal)
             if otros:
                 st.subheader("Otros diagnósticos posibles")
                 for dg in otros:
@@ -191,6 +197,12 @@ def mostrar_resultado(r: dict[str, Valor]) -> None:
                         st.caption(f"👉 {rec}")
                     for adv in dg.advertencias:
                         st.caption(f"⚠️ {adv}")
+                    mostrar_evidencia(dg)
+        if inferencia.descartados:
+            st.subheader("Descartados por evidencia en contra")
+            for dg in inferencia.descartados:
+                motivos = "; ".join(d.regla.descripcion for d in dg.en_contra)
+                st.markdown(f"~~{dg.descripcion}~~: {motivos}.")
         st.button("🔄 Nueva consulta", on_click=reiniciar, type="primary")
 
     with tab_razon:
@@ -230,6 +242,20 @@ def mostrar_resultado(r: dict[str, Valor]) -> None:
             file_name="red_inferencia.json",
             mime="application/json",
         )
+
+
+def mostrar_evidencia(dg: Diagnostico) -> None:
+    """Desglose de la certeza cuando varias reglas aportaron evidencia a favor o en contra."""
+    if len(dg.disparos) < 2:
+        return
+    with st.expander(f"🧮 ¿Por qué {dg.certeza * 100:.0f}% de certeza?"):
+        for d in dg.disparos:
+            icono = "➕" if d.certeza > 0 else "➖"
+            sentido = "a favor" if d.certeza > 0 else "en contra"
+            st.markdown(f"{icono} **{d.regla.descripcion}** (`{d.regla.id}`): {sentido}, "
+                        f"{abs(d.certeza) * 100:.0f}%")
+        st.caption("Las evidencias se combinan con el modelo de factores de certeza de MYCIN: "
+                   "las que están a favor se refuerzan y las que están en contra restan.")
 
 
 def lineas_analisis(analisis: AnalisisRegla, nivel: int = 0) -> list[str]:
