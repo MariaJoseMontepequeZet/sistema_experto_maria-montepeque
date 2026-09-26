@@ -22,6 +22,14 @@ class TestApp(unittest.TestCase):
         boton.click().run()
         self.assertFalse(self.app.exception, self.app.exception)
 
+    def clic_no_se(self) -> bool:
+        """Responde 'No sé' (o 'No puedo hacerla' en una prueba). False si ya no hay preguntas."""
+        for etiqueta in ("No sé", "No puedo hacerla"):
+            if any(b.label == etiqueta for b in self.app.button):
+                self.clic(etiqueta)
+                return True
+        return False
+
     def pregunta(self) -> str:
         return self.app.subheader[0].value
 
@@ -34,17 +42,24 @@ class TestApp(unittest.TestCase):
         self.assertIn("tipo de equipo", self.pregunta())
         self.clic("Computadora de escritorio")    # pregunta de opción: un botón por opción
         self.clic("No")                           # ¿luces LED?
+        self.assertIn("otra fuente", self.pregunta())    # prueba de verificación
+        self.assertIn("No puedo hacerla", [b.label for b in self.app.button])
+        self.clic("Sí")                           # con otra fuente el problema desaparece
         self.assertIn("Fuente de poder dañada", self.app.success[0].value)
+        self.assertIn("99%", self.app.success[0].value)
         self.assertIn("Nunca abras la fuente", self.app.warning[0].value)
         self.assertEqual(len(self.app.tabs), 4)
 
     def test_pregunta_numerica(self):
         self.clic("Sí")                           # ¿arranca?
-        # responder "no sé" hasta llegar a la temperatura
-        for _ in range(20):
+        # la temperatura solo se pide si hay imagen; el resto se responde "no sé"
+        for _ in range(25):
             if self.app.number_input:
                 break
-            self.clic("No sé")
+            if "imagen" in self.pregunta():
+                self.clic("Sí")
+            else:
+                self.clic_no_se()
         [campo] = self.app.number_input
         self.assertIn("°C", campo.label)
         self.assertTrue([b for b in self.app.button if b.label == "Responder"][0].disabled)
@@ -68,6 +83,15 @@ class TestApp(unittest.TestCase):
         self.assertIn("🧮 ¿Por qué 75% de certeza?", [e.label for e in self.app.expander])
         self.assertIn("Descartados por evidencia en contra", [s.value for s in self.app.subheader])
 
+    def test_ver_diagnostico_sin_mas_pruebas(self):
+        self.clic("No")
+        self.clic("Computadora de escritorio")
+        self.clic("No")
+        self.clic("⏭️ Ver el diagnóstico sin más pruebas")
+        self.assertIn("Fuente de poder dañada", self.app.success[0].value)
+        self.clic("↩️ Deshacer")                  # vuelve a la prueba que se saltó
+        self.assertIn("otra fuente", self.pregunta())
+
     def test_deshacer_vuelve_a_la_pregunta_anterior(self):
         self.clic("No")
         self.assertIn("tipo de equipo", self.pregunta())
@@ -75,10 +99,9 @@ class TestApp(unittest.TestCase):
         self.assertIn("arranca", self.pregunta())
 
     def test_no_se_no_rompe_la_consulta(self):
-        for _ in range(20):   # hay 16 preguntas como máximo
-            if not [b for b in self.app.button if b.label == "No sé"]:
+        for _ in range(30):   # hay 23 preguntas como máximo
+            if not self.clic_no_se():
                 break
-            self.clic("No sé")
         self.assertEqual(len(self.app.success), 0)   # sin datos no hay diagnóstico
         self.assertEqual(len(self.app.info), 2)      # avisos en Diagnóstico y Razonamiento
 

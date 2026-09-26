@@ -36,13 +36,15 @@ class TestVisualizacion(unittest.TestCase):
         self.assertIn('"arranque_sin_video" -> "regla:R02";', dot)
 
     def test_razonamiento_con_respuesta_numerica(self):
-        inferencia = encadenar_hacia_adelante(BASE, {"enciende": True, "temperatura_cpu": 95.0})
+        inferencia = encadenar_hacia_adelante(BASE, {"enciende": True, "hay_video": True,
+                                                     "temperatura_cpu": 95.0})
         dot = dot_razonamiento(inferencia, "sobrecalentamiento", BASE)
         self.assertIn('label="temperatura_cpu = 95 °C"', dot)
 
     def test_evidencia_en_contra_se_distingue(self):
         inferencia = encadenar_hacia_adelante(BASE, {
-            "enciende": True, "se_apaga_solo": True, "calor_excesivo": True, "temperatura_cpu": 60.0})
+            "enciende": True, "hay_video": True, "se_apaga_solo": True, "calor_excesivo": True,
+            "temperatura_cpu": 60.0})
         dot = dot_razonamiento(inferencia, "sobrecalentamiento", BASE)
         self.assertIn(r'"regla:E01" [label="E01\nLa temperatura del procesador es normal\n-60%"', dot)
         self.assertIn('"regla:E01" -> "sobrecalentamiento" [style=dashed, color="#c92a2a"', dot)
