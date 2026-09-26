@@ -41,6 +41,15 @@ def formatear_numero(numero: float) -> str:
     return f"{numero:g}"
 
 
+def porcentaje(certeza: float) -> str:
+    """Certeza como porcentaje. Solo una certeza exactamente 1 se muestra como 100 %:
+    un diagnóstico casi seguro no debe presentarse como infalible por el redondeo."""
+    valor = certeza * 100
+    if abs(certeza) < 1:
+        valor = max(-99.0, min(99.0, valor))
+    return f"{valor:.0f}%"
+
+
 def combinar_certezas(a: float, b: float) -> float:
     """
     Combina dos evidencias independientes sobre el mismo hecho (factores de certeza de MYCIN):
@@ -68,6 +77,7 @@ class Hecho:
     minimo: float | None = None
     maximo: float | None = None
     ayuda: str | None = None                      # cómo averiguar la respuesta
+    prueba: bool = False                          # pide una acción de verificación: se pregunta al final
 
     @property
     def valores_opcion(self) -> tuple[str, ...]:

@@ -303,17 +303,22 @@ def siguiente_pregunta(base: BaseDeConocimiento, respuestas: Respuestas) -> Preg
     Elige la pregunta que más hipótesis abiertas necesitan (así cada respuesta
     confirma o descarta la mayor cantidad posible). Desempata por la confianza
     de las hipótesis y luego por el orden del archivo de conocimiento.
-    Devuelve None cuando ya no queda nada útil por preguntar.
+
+    Primero se agotan los síntomas; las pruebas de verificación (acciones que el
+    usuario tiene que hacer) se proponen al final, solo para las hipótesis que
+    siguen abiertas. Devuelve None cuando ya no queda nada útil por preguntar.
     """
     interesadas = _hipotesis_por_hecho(base, respuestas)
-    if not interesadas:
+    sintomas = {h: rs for h, rs in interesadas.items() if not base.hechos[h].prueba}
+    candidatas = sintomas or interesadas
+    if not candidatas:
         return None
 
     orden = list(base.preguntas)
     hecho = max(
-        interesadas,
-        key=lambda h: (len(interesadas[h]),
-                       max(r.confianza for r in interesadas[h]),
+        candidatas,
+        key=lambda h: (len(candidatas[h]),
+                       max(abs(r.confianza) for r in candidatas[h]),
                        -orden.index(h)),
     )
     return pregunta_sobre(base, respuestas, hecho, interesadas)
@@ -341,8 +346,10 @@ def _hipotesis_por_hecho(base: BaseDeConocimiento,
     # Evidencia a favor o en contra de los diagnósticos que todavía son posibles:
     # puede cambiar su certeza, así que también vale la pena preguntarla.
     for diagnostico in base.hechos_diagnostico:
+        # Un diagnóstico sigue siendo posible si alguna de sus reglas ya se cumple o todavía
+        # puede cumplirse con preguntas sin responder (las respondidas con "no sé" no cuentan).
         posibles = [analizar(r) for r in base.reglas_que_concluyen(diagnostico) if r.es_diagnostico]
-        if all(a.descartada for a in posibles):
+        if not any(a.se_activa or any(h not in respuestas for h in a.por_preguntar) for a in posibles):
             continue
         for regla in base.evidencias_de(diagnostico):
             for hecho in analizar(regla).por_preguntar:
@@ -391,6 +398,8 @@ def exportar_red(base: BaseDeConocimiento) -> dict:
             nodo["opciones"] = dict(hecho.opciones)
         if hecho.unidad:
             nodo["unidad"] = hecho.unidad
+        if hecho.prueba:
+            nodo["prueba"] = True
         nodos.append(nodo)
     for hecho in dict.fromkeys(r.conclusion for r in base.reglas):
         nodos.append({
