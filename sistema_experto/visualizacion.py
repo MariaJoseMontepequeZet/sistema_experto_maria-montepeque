@@ -17,6 +17,7 @@ ESTILOS = {
     "desconocido": 'shape=box, style="rounded,filled,dashed", fillcolor="#f1f3f5", color="#868e96"',
     "entrada":     'shape=box, style="rounded,filled", fillcolor="#f1f3f5", color="#868e96"',
     "regla":       'shape=ellipse, style=filled, fillcolor="#d0ebff", color="#1864ab"',
+    "regla_contra": 'shape=ellipse, style="filled,dashed", fillcolor="#ffe3e3", color="#c92a2a"',
     "intermedio":  'shape=box, style="rounded,filled", fillcolor="#fff3bf", color="#e67700"',
     "diagnostico": 'shape=box, style="rounded,filled,bold", fillcolor="#e5dbff", color="#5f3dc4"',
 }
@@ -27,6 +28,10 @@ CABECERA = [
     '  node [fontname="Helvetica", fontsize=11, fontcolor="#212529"];',
     '  edge [color="#868e96", fontname="Helvetica", fontsize=9, fontcolor="#868e96"];',
 ]
+
+
+# Arista de una evidencia en contra hacia el hecho que debilita
+ARISTA_CONTRA = ' [style=dashed, color="#c92a2a", fontcolor="#c92a2a", label="en contra"]'
 
 
 def dot_razonamiento(inferencia: Inferencia, hecho: str,
@@ -44,7 +49,8 @@ def dot_razonamiento(inferencia: Inferencia, hecho: str,
     for d in inferencia.justificacion(hecho):
         regla = d.regla
         id_regla = f"regla:{regla.id}"
-        nodo(id_regla, f"{regla.id}\n{regla.descripcion}\n{d.certeza * 100:.0f}%", "regla")
+        nodo(id_regla, f"{regla.id}\n{regla.descripcion}\n{d.certeza * 100:+.0f}%",
+             "regla_contra" if regla.en_contra else "regla")
         for condicion in regla.condiciones:
             if condicion in hechos.origen and hechos.origen[condicion] != [ORIGEN_USUARIO]:
                 nodo(condicion, condicion, "intermedio")
@@ -54,9 +60,10 @@ def dot_razonamiento(inferencia: Inferencia, hecho: str,
                 estilo = ("si" if valor else "no") if isinstance(valor, bool) else "valor"
                 nodo(condicion, f"{condicion} = {texto}", estilo)
             lineas.append(f"  {_id(condicion)} -> {_id(id_regla)};")
-        estilo = "diagnostico" if regla.es_diagnostico else "intermedio"
+        estilo = "diagnostico" if regla.conclusion in _diagnosticos(inferencia) else "intermedio"
         nodo(regla.conclusion, regla.conclusion, estilo)
-        lineas.append(f"  {_id(id_regla)} -> {_id(regla.conclusion)};")
+        arista = ARISTA_CONTRA if regla.en_contra else ""
+        lineas.append(f"  {_id(id_regla)} -> {_id(regla.conclusion)}{arista};")
 
     lineas.append("}")
     return "\n".join(lineas)
@@ -67,14 +74,17 @@ def dot_red(base: BaseDeConocimiento) -> str:
     red = exportar_red(base)
     lineas = list(CABECERA)
     for n in red["nodos"]:
+        estilo = n["tipo"]
         if n["tipo"] == "regla":
-            etiqueta = f"{n['id']}\n{n['confianza'] * 100:.0f}%"
+            etiqueta = f"{n['id']}\n{n['confianza'] * 100:+.0f}%"
             id_nodo = f"regla:{n['id']}"
+            if n["confianza"] < 0:
+                estilo = "regla_contra"
         else:
             etiqueta = n["id"]
             id_nodo = n["id"]
         lineas.append(f"  {_id(id_nodo)} [label={_texto(etiqueta)}, "
-                      f"tooltip={_texto(n['etiqueta'])}, {ESTILOS[n['tipo']]}];")
+                      f"tooltip={_texto(n['etiqueta'])}, {ESTILOS[estilo]}];")
 
     for r in base.reglas:
         for hecho, condicion in r.condiciones.items():
@@ -85,10 +95,15 @@ def dot_red(base: BaseDeConocimiento) -> str:
             else:
                 atributos = f" [label={_texto(base.describir(hecho, condicion))}]"
             lineas.append(f"  {_id(hecho)} -> {_id(f'regla:{r.id}')}{atributos};")
-        lineas.append(f"  {_id(f'regla:{r.id}')} -> {_id(r.conclusion)};")
+        arista = ARISTA_CONTRA if r.en_contra else ""
+        lineas.append(f"  {_id(f'regla:{r.id}')} -> {_id(r.conclusion)}{arista};")
 
     lineas.append("}")
     return "\n".join(lineas)
+
+
+def _diagnosticos(inferencia: Inferencia) -> set[str]:
+    return {d.regla.conclusion for d in inferencia.disparos if d.regla.es_diagnostico}
 
 
 def _texto(valor: str) -> str:
