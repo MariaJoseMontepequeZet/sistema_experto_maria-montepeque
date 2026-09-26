@@ -21,6 +21,7 @@ proyecto con arquitectura modular, pruebas automatizadas, integración continua 
 - **Tres tipos de pregunta:** sí/no, opción múltiple (por ejemplo, el patrón de pitidos) y numéricas con unidad (por ejemplo, la temperatura del procesador).
 - **Explica su razonamiento:** muestra la cadena de reglas que llevó al diagnóstico, en texto y como diagrama.
 - **Encadenamiento hacia adelante y hacia atrás:** de los síntomas al diagnóstico, y de una hipótesis a los síntomas que la confirmarían.
+- **Pruebas de verificación:** después de los síntomas, el sistema propone pruebas concretas (otro monitor, otra fuente, estado SMART del disco, un solo módulo de RAM…) y usa el resultado como evidencia fuerte: los diagnósticos confirmados superan el 95 % y los descartados se explican.
 - **Evidencia a favor y en contra:** cada diagnóstico tiene una certeza neta (factores de certeza de MYCIN, de −1 a +1). Un síntoma puede reforzarlo o debilitarlo, y los diagnósticos que la evidencia en contra deja bajo el umbral se muestran como descartados, con el motivo.
 - **Respuestas "no sé"** y la pregunta **"¿por qué me preguntas esto?"**.
 - **Advertencias de seguridad** en los diagnósticos que implican abrir el equipo o arriesgar datos.
