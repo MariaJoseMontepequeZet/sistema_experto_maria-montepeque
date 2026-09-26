@@ -40,6 +40,7 @@
     },
     "fecha_hora_incorrecta":     { "pregunta": "¿La fecha y hora se reinician cada vez que apaga el equipo?" },
     "conexion_red":              { "pregunta": "¿El equipo se conecta a alguna red (WiFi/Ethernet)?" },
+    "otros_dispositivos_conectan": { "pregunta": "¿Otros dispositivos (celular, otra computadora) se conectan a internet en la misma red?" },
     "otras_apps_funcionan":      { "pregunta": "¿Las demás aplicaciones funcionan con normalidad?" },
     "perifericos_responden":     { "pregunta": "¿El teclado y el mouse USB responden al encender?" }
   },
@@ -156,6 +157,20 @@
       "confianza": 0.90
     },
     {
+      "id": "E01",
+      "descripcion": "La temperatura del procesador es normal",
+      "si": { "enciende": true, "temperatura_cpu": { "<": 70 } },
+      "entonces": "sobrecalentamiento",
+      "confianza": -0.6
+    },
+    {
+      "id": "E02",
+      "descripcion": "El ventilador trabaja siempre al máximo",
+      "si": { "enciende": true, "ventilador_siempre_activo": true },
+      "entonces": "sobrecalentamiento",
+      "confianza": 0.3
+    },
+    {
       "id": "R15",
       "descripcion": "Fuente de poder inestable",
       "si": { "enciende": true, "tipo_equipo": "escritorio", "se_apaga_solo": true, "temperatura_cpu": { "<": 80 } },
@@ -180,6 +195,21 @@
       "entonces": "falla_red",
       "recomendacion": "Reinstalar drivers de red o reemplazar adaptador WiFi",
       "confianza": 0.78
+    },
+    {
+      "id": "E03",
+      "descripcion": "Otros dispositivos tampoco se conectan a la red",
+      "si": { "enciende": true, "otros_dispositivos_conectan": false },
+      "entonces": "falla_red",
+      "confianza": -0.8
+    },
+    {
+      "id": "R16",
+      "descripcion": "Problema del router o del proveedor de internet",
+      "si": { "enciende": true, "conexion_red": false, "otros_dispositivos_conectan": false },
+      "entonces": "falla_router",
+      "recomendacion": "Reiniciar el router (desconectarlo 30 segundos) y, si el problema continúa, contactar al proveedor de internet",
+      "confianza": 0.85
     },
     {
       "id": "R10",
