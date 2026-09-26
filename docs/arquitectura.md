@@ -69,7 +69,8 @@ Es la única parte que usa `input()` y `print()`. En cada paso le pide al motor 
 
 1. Analiza cada diagnóstico y descarta los que ya contradice alguna respuesta, igual que los ya confirmados.
 2. Junta las preguntas que les faltan a los diagnósticos que siguen abiertos.
-3. Elige la que necesitan más hipótesis a la vez. Si hay empate, prefiere la de mayor confianza y luego el orden del JSON.
+3. Elige la que necesitan más hipótesis a la vez. Si hay empate, prefiere la de mayor confianza y luego el orden del JSON. Las **pruebas de verificación** (`"prueba": true`) quedan para el final: solo se proponen cuando ya no quedan síntomas por preguntar.
+   Un diagnóstico cuenta como "todavía posible" si alguna de sus reglas ya se cumple o puede cumplirse con preguntas sin responder; las respondidas con "no sé" no cuentan, así no se pregunta evidencia de algo que ya no se puede confirmar.
 4. Si no queda ninguna, termina la consulta.
 
 Una prueba recorre todo el árbol de decisión (más de 10 000 caminos de consulta, con todas las opciones y los valores límite de cada umbral numérico). En cada final comprueba que las respuestas no preguntadas no habrían cambiado el resultado: preguntar menos nunca hace perder un diagnóstico.

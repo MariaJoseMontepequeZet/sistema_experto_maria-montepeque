@@ -18,9 +18,9 @@ RUTA_POR_DEFECTO = Path(__file__).resolve().parent.parent / "conocimiento" / "di
 
 CAMPOS_REGLA = {"id", "descripcion", "si", "entonces", "recomendacion", "advertencia", "confianza"}
 CAMPOS_HECHO = {
-    SI_NO: {"pregunta", "tipo", "ayuda"},
-    OPCION: {"pregunta", "tipo", "ayuda", "opciones"},
-    NUMERO: {"pregunta", "tipo", "ayuda", "unidad", "minimo", "maximo"},
+    SI_NO: {"pregunta", "tipo", "ayuda", "prueba"},
+    OPCION: {"pregunta", "tipo", "ayuda", "prueba", "opciones"},
+    NUMERO: {"pregunta", "tipo", "ayuda", "prueba", "unidad", "minimo", "maximo"},
 }
 
 
@@ -115,9 +115,12 @@ def validar(base: BaseDeConocimiento) -> list[str]:
             errores.append(f"{r.id}: '{r.conclusion}' se usa como condición de otra regla; "
                            "no puede recibir evidencia en contra")
 
-    # Pregunta de reflexión 11: condiciones idénticas generan ambigüedad.
+    # Pregunta de reflexión 11: condiciones idénticas generan ambigüedad. No aplica a la
+    # evidencia: una misma observación puede apoyar un diagnóstico y debilitar otro.
     por_condiciones: dict[frozenset, str] = {}
     for r in base.reglas:
+        if not r.es_diagnostico and r.conclusion in base.hechos_diagnostico:
+            continue
         clave = frozenset(r.condiciones.items())
         if clave in por_condiciones:
             errores.append(
@@ -218,6 +221,10 @@ def _construir_hecho(nombre: str, info: Any, errores: list[str]) -> Hecho | None
     if ayuda is not None and (not isinstance(ayuda, str) or not ayuda.strip()):
         errores.append(f"El hecho '{nombre}': 'ayuda' debe ser texto")
 
+    prueba = info.get("prueba", False)
+    if not isinstance(prueba, bool):
+        errores.append(f"El hecho '{nombre}': 'prueba' debe ser true o false")
+
     opciones: tuple[tuple[str, str], ...] = ()
     if tipo == OPCION:
         crudas = info.get("opciones")
@@ -248,7 +255,7 @@ def _construir_hecho(nombre: str, info: Any, errores: list[str]) -> Hecho | None
         return None
     return Hecho(nombre=nombre, pregunta=pregunta, tipo=tipo, opciones=opciones, unidad=unidad,
                  minimo=None if minimo is None else float(minimo),
-                 maximo=None if maximo is None else float(maximo), ayuda=ayuda)
+                 maximo=None if maximo is None else float(maximo), ayuda=ayuda, prueba=prueba)
 
 
 def _validar_condicion(id_regla: str, hecho: Hecho, condicion: Condicion) -> list[str]:

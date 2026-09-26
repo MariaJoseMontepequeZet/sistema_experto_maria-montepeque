@@ -62,10 +62,10 @@ class TestConsultaDinamica(unittest.TestCase):
         confianzas = [r.confianza for r in pregunta.hipotesis]
         self.assertEqual(confianzas, sorted(confianzas, reverse=True))
 
-    def test_si_no_enciende_solo_hace_tres_preguntas(self):
-        verdad = {h: False for h in HECHOS} | {"tipo_equipo": "escritorio"}
+    def test_si_no_enciende_bastan_tres_sintomas_y_una_prueba(self):
+        verdad = {h: False for h in HECHOS} | {"tipo_equipo": "escritorio", "prueba_otra_fuente": True}
         respuestas = simular(verdad)
-        self.assertEqual(list(respuestas), ["enciende", "tipo_equipo", "luces_led"])
+        self.assertEqual(list(respuestas), ["enciende", "tipo_equipo", "luces_led", "prueba_otra_fuente"])
         self.assertEqual(diagnosticos(respuestas), {"falla_fuente"})
 
     def test_la_pregunta_incluye_su_tipo_y_opciones(self):
