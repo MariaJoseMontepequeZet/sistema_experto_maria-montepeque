@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from .conocimiento import RUTA_POR_DEFECTO, ErrorDeConocimiento, cargar
-from .modelo import NUMERO, OPCION, ORIGEN_USUARIO, BaseDeConocimiento, Condicion, Hecho, Valor
+from .modelo import NUMERO, OPCION, ORIGEN_USUARIO, BaseDeConocimiento, Condicion, Hecho, Valor, porcentaje
 from .motor import (
     CONTRADICHA,
     CUMPLIDA,
@@ -50,6 +50,8 @@ def preguntar_sintoma(numero: int, pregunta: Pregunta) -> Valor:
     En todos los casos: ns = no sé, ? = explica por qué se hace la pregunta.
     """
     entrada = pregunta.entrada or Hecho(pregunta.hecho, pregunta.texto)
+    if entrada.prueba:
+        print("  🔧 PRUEBA DE VERIFICACIÓN (ns = no puedo hacerla)")
     print(f"  {numero}. {pregunta.texto}")
     if entrada.tipo == OPCION:
         for i, (_, etiqueta) in enumerate(entrada.opciones, 1):
@@ -148,7 +150,7 @@ def mostrar_descartados(inferencia: Inferencia) -> None:
     print(LINEA_FINA)
     for dg in inferencia.descartados:
         motivos = "; ".join(d.regla.descripcion for d in dg.en_contra)
-        print(f"  ✗ {dg.descripcion}: {motivos} (certeza neta {dg.certeza * 100:.0f}%)")
+        print(f"  ✗ {dg.descripcion}: {motivos} (certeza neta {porcentaje(dg.certeza)})")
     print()
 
 
@@ -177,7 +179,7 @@ def mostrar_inferencia(base: BaseDeConocimiento, inferencia: Inferencia, mostrar
         print("  RANKING COMPLETO DE DIAGNÓSTICOS")
         print(LINEA_FINA)
         for i, dg in enumerate(diagnosticos, 1):
-            print(f"  #{i} {dg.descripcion}  ({dg.certeza * 100:.0f}%)")
+            print(f"  #{i} {dg.descripcion}  ({porcentaje(dg.certeza)})")
             for rec in dg.recomendaciones:
                 print(f"      → {rec}")
             for adv in dg.advertencias:
@@ -191,7 +193,7 @@ def mostrar_inferencia(base: BaseDeConocimiento, inferencia: Inferencia, mostrar
         print(f"  {dg.descripcion}")
         for rec in dg.recomendaciones:
             print(f"  Recomendación: {rec}")
-        print(f"  Certeza:       {dg.certeza * 100:.0f}%")
+        print(f"  Certeza:       {porcentaje(dg.certeza)}")
         for adv in dg.advertencias:
             print(f"  ⚠ Precaución:  {adv}")
         mostrar_evidencia(dg, "  ")
@@ -207,7 +209,7 @@ def mostrar_inferencia(base: BaseDeConocimiento, inferencia: Inferencia, mostrar
         print(f"      SI {formatear_condiciones(base, d.regla.condiciones)}")
         print(f"      ENTONCES {d.regla.conclusion}  ({d.certeza * 100:.0f}%)")
     if not mostrar_todos and len(diagnosticos) > 1:
-        otros = [f"{dg.descripcion} ({dg.certeza * 100:.0f}%)" for dg in diagnosticos[1:]]
+        otros = [f"{dg.descripcion} ({porcentaje(dg.certeza)})" for dg in diagnosticos[1:]]
         print(f"  Otros diagnósticos con menor certeza: {'; '.join(otros)}")
     print(LINEA_GRUESA)
 
