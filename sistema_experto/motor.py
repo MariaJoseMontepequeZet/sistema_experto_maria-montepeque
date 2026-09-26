@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from functools import cached_property
 
-from .modelo import BaseDeConocimiento, BaseDeHechos, Regla
+from .modelo import BaseDeConocimiento, BaseDeHechos, Condicion, Hecho, Regla, Valor
 
-# hecho de entrada -> True (sí), False (no) o None (no sé)
-Respuestas = Mapping[str, bool | None]
+# hecho de entrada -> True/False (sí/no), una opción, un número, o None (no sé)
+Respuestas = Mapping[str, Valor]
 
 # ──────────────────────────────────────────────────────────────
 # Encadenamiento hacia adelante
@@ -115,20 +116,28 @@ def encadenar_hacia_adelante(base: BaseDeConocimiento,
     Los hechos derivados alimentan a otras reglas en ciclos posteriores.
     Las respuestas "no sé" (None) dejan el hecho como desconocido.
     """
-    desconocidos = set(respuestas) - set(base.preguntas)
+    desconocidos = set(respuestas) - set(base.hechos)
     if desconocidos:
         raise ValueError(f"Hechos de entrada desconocidos: {sorted(desconocidos)}")
+    for hecho, valor in respuestas.items():
+        if not base.hechos[hecho].admite(valor):
+            raise ValueError(f"Respuesta no válida para '{hecho}': {valor!r}")
 
     hechos = BaseDeHechos()
     for hecho, valor in respuestas.items():
         if valor is not None:
             hechos.afirmar(hecho, valor)
 
+    # Las respuestas no cambian durante la inferencia: una regla que ya contradice alguna
+    # nunca podrá dispararse, así que se descarta una sola vez en lugar de en cada ciclo.
+    candidatas = [r for r in base.reglas
+                  if all(c.cumple(hechos.valor(h)) for h, c in r.condiciones.items() if h in base.hechos)]
+
     inferencia = Inferencia(hechos)
     disparadas: set[str] = set()
     ciclo = 0
     while True:
-        conflict_set = equiparar(base.reglas, hechos, disparadas)
+        conflict_set = equiparar(candidatas, hechos, disparadas)
         regla = resolver_conflictos(conflict_set)
         if regla is None:
             return inferencia
@@ -151,15 +160,15 @@ CUMPLIDA, CONTRADICHA, PENDIENTE = "cumplida", "contradicha", "pendiente"
 @dataclass(frozen=True)
 class EstadoCondicion:
     hecho: str
-    esperado: bool
-    actual: bool | None
+    esperado: Condicion
+    actual: Valor
     subobjetivos: tuple[AnalisisRegla, ...] = ()   # reglas que podrían derivar el hecho
 
     @property
     def estado(self) -> str:
         if self.actual is None:
             return PENDIENTE
-        return CUMPLIDA if self.actual == self.esperado else CONTRADICHA
+        return CUMPLIDA if self.esperado.cumple(self.actual) else CONTRADICHA
 
 
 @dataclass(frozen=True)
@@ -167,15 +176,16 @@ class AnalisisRegla:
     regla: Regla
     condiciones: tuple[EstadoCondicion, ...]
 
-    @property
+    # cached_property: el análisis es inmutable, así que cada resultado se calcula una sola vez
+    @cached_property
     def se_activa(self) -> bool:
         return all(c.estado == CUMPLIDA for c in self.condiciones)
 
-    @property
+    @cached_property
     def descartada(self) -> bool:
         return any(c.estado == CONTRADICHA for c in self.condiciones)
 
-    @property
+    @cached_property
     def por_preguntar(self) -> list[str]:
         """Hechos de entrada que faltan confirmar para poder activar la regla."""
         if self.descartada:
@@ -221,6 +231,7 @@ class Pregunta:
     hecho: str
     texto: str
     hipotesis: tuple[Regla, ...]   # diagnósticos que esta respuesta ayuda a confirmar o descartar
+    entrada: Hecho | None = None   # tipo de respuesta, opciones, unidad y ayuda
 
 
 def hipotesis_abiertas(base: BaseDeConocimiento, respuestas: Respuestas) -> list[AnalisisRegla]:
@@ -266,7 +277,8 @@ def pregunta_sobre(base: BaseDeConocimiento, respuestas: Respuestas, hecho: str,
     if interesadas is None:
         interesadas = _hipotesis_por_hecho(base, respuestas)
     hipotesis = sorted(interesadas.get(hecho, []), key=lambda r: r.confianza, reverse=True)
-    return Pregunta(hecho, base.preguntas[hecho], tuple(hipotesis))
+    entrada = base.hechos[hecho]
+    return Pregunta(hecho, entrada.pregunta, tuple(hipotesis), entrada)
 
 
 def _hipotesis_por_hecho(base: BaseDeConocimiento,
@@ -312,8 +324,13 @@ def exportar_red(base: BaseDeConocimiento) -> dict:
     diagnosticos = {r.conclusion for r in base.reglas if r.es_diagnostico}
     nodos: list[dict] = []
 
-    for hecho, pregunta in base.preguntas.items():
-        nodos.append({"id": hecho, "tipo": "entrada", "etiqueta": pregunta})
+    for nombre, hecho in base.hechos.items():
+        nodo = {"id": nombre, "tipo": "entrada", "etiqueta": hecho.pregunta, "respuesta": hecho.tipo}
+        if hecho.opciones:
+            nodo["opciones"] = dict(hecho.opciones)
+        if hecho.unidad:
+            nodo["unidad"] = hecho.unidad
+        nodos.append(nodo)
     for hecho in dict.fromkeys(r.conclusion for r in base.reglas):
         nodos.append({
             "id": hecho,
@@ -325,8 +342,8 @@ def exportar_red(base: BaseDeConocimiento) -> dict:
     for r in base.reglas:
         nodos.append({"id": r.id, "tipo": "regla", "etiqueta": r.descripcion,
                       "confianza": r.confianza})
-        for hecho, valor in r.condiciones.items():
-            aristas.append({"origen": hecho, "destino": r.id, "valor": valor})
+        for hecho, condicion in r.condiciones.items():
+            aristas.append({"origen": hecho, "destino": r.id, "valor": condicion.a_json()})
         aristas.append({"origen": r.id, "destino": r.conclusion, "confianza": r.confianza})
 
     return {"nombre": base.nombre, "nodos": nodos, "aristas": aristas}

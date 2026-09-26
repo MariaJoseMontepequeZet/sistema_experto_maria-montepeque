@@ -6,13 +6,14 @@ razonamiento de una consulta. Solo genera texto: cualquier interfaz
 
 from __future__ import annotations
 
-from .modelo import BaseDeConocimiento
+from .modelo import ORIGEN_USUARIO, BaseDeConocimiento
 from .motor import Inferencia, exportar_red
 
 # Colores legibles tanto en tema claro como oscuro (relleno claro, texto oscuro)
 ESTILOS = {
     "si":          'shape=box, style="rounded,filled", fillcolor="#d3f9d8", color="#2b8a3e"',
     "no":          'shape=box, style="rounded,filled", fillcolor="#ffe3e3", color="#c92a2a"',
+    "valor":       'shape=box, style="rounded,filled", fillcolor="#e7f5ff", color="#1971c2"',
     "desconocido": 'shape=box, style="rounded,filled,dashed", fillcolor="#f1f3f5", color="#868e96"',
     "entrada":     'shape=box, style="rounded,filled", fillcolor="#f1f3f5", color="#868e96"',
     "regla":       'shape=ellipse, style=filled, fillcolor="#d0ebff", color="#1864ab"',
@@ -28,7 +29,8 @@ CABECERA = [
 ]
 
 
-def dot_razonamiento(inferencia: Inferencia, hecho: str) -> str:
+def dot_razonamiento(inferencia: Inferencia, hecho: str,
+                     base: BaseDeConocimiento | None = None) -> str:
     """Cadena de reglas que llevó a `hecho`: respuestas → reglas → hechos derivados."""
     hechos = inferencia.hechos
     lineas = list(CABECERA)
@@ -44,11 +46,13 @@ def dot_razonamiento(inferencia: Inferencia, hecho: str) -> str:
         id_regla = f"regla:{regla.id}"
         nodo(id_regla, f"{regla.id}\n{regla.descripcion}\n{d.certeza * 100:.0f}%", "regla")
         for condicion in regla.condiciones:
-            if condicion in hechos.origen and hechos.origen[condicion] != ["usuario"]:
+            if condicion in hechos.origen and hechos.origen[condicion] != [ORIGEN_USUARIO]:
                 nodo(condicion, condicion, "intermedio")
             else:
                 valor = hechos.valor(condicion)
-                nodo(condicion, f"{condicion} = {'sí' if valor else 'no'}", "si" if valor else "no")
+                texto = base.formatear(condicion, valor) if base else ("sí" if valor else "no")
+                estilo = ("si" if valor else "no") if isinstance(valor, bool) else "valor"
+                nodo(condicion, f"{condicion} = {texto}", estilo)
             lineas.append(f"  {_id(condicion)} -> {_id(id_regla)};")
         estilo = "diagnostico" if regla.es_diagnostico else "intermedio"
         nodo(regla.conclusion, regla.conclusion, estilo)
@@ -72,12 +76,16 @@ def dot_red(base: BaseDeConocimiento) -> str:
         lineas.append(f"  {_id(id_nodo)} [label={_texto(etiqueta)}, "
                       f"tooltip={_texto(n['etiqueta'])}, {ESTILOS[n['tipo']]}];")
 
-    reglas = {r.id for r in base.reglas}
-    for a in red["aristas"]:
-        origen = f"regla:{a['origen']}" if a["origen"] in reglas else a["origen"]
-        destino = f"regla:{a['destino']}" if a["destino"] in reglas else a["destino"]
-        atributos = ' [style=dashed, label="no"]' if a.get("valor") is False else ""
-        lineas.append(f"  {_id(origen)} -> {_id(destino)}{atributos};")
+    for r in base.reglas:
+        for hecho, condicion in r.condiciones.items():
+            if condicion.esperado is True:
+                atributos = ""
+            elif condicion.esperado is False:
+                atributos = ' [style=dashed, label="no"]'
+            else:
+                atributos = f" [label={_texto(base.describir(hecho, condicion))}]"
+            lineas.append(f"  {_id(hecho)} -> {_id(f'regla:{r.id}')}{atributos};")
+        lineas.append(f"  {_id(f'regla:{r.id}')} -> {_id(r.conclusion)};")
 
     lineas.append("}")
     return "\n".join(lineas)

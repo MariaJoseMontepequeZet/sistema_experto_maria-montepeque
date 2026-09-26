@@ -12,11 +12,16 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .modelo import BaseDeConocimiento, Regla
+from .modelo import NUMERO, OPCION, SI_NO, TIPOS, BaseDeConocimiento, Condicion, Hecho, Regla, es_numero
 
 RUTA_POR_DEFECTO = Path(__file__).resolve().parent.parent / "conocimiento" / "diagnostico_pc.json"
 
 CAMPOS_REGLA = {"id", "descripcion", "si", "entonces", "recomendacion", "advertencia", "confianza"}
+CAMPOS_HECHO = {
+    SI_NO: {"pregunta", "tipo", "ayuda"},
+    OPCION: {"pregunta", "tipo", "ayuda", "opciones"},
+    NUMERO: {"pregunta", "tipo", "ayuda", "unidad", "minimo", "maximo"},
+}
 
 
 class ErrorDeConocimiento(ValueError):
@@ -42,13 +47,11 @@ def desde_dict(datos: dict[str, Any]) -> BaseDeConocimiento:
     if not isinstance(reglas_crudas, list) or not reglas_crudas:
         raise ErrorDeConocimiento(["'reglas' debe ser una lista no vacía"])
 
-    preguntas: dict[str, str] = {}
-    for hecho, info in hechos.items():
-        pregunta = info.get("pregunta") if isinstance(info, dict) else None
-        if not isinstance(pregunta, str) or not pregunta.strip():
-            errores.append(f"El hecho '{hecho}' no tiene una 'pregunta' válida")
-        else:
-            preguntas[hecho] = pregunta
+    entradas: dict[str, Hecho] = {}
+    for nombre, info in hechos.items():
+        hecho = _construir_hecho(nombre, info, errores)
+        if hecho is not None:
+            entradas[nombre] = hecho
 
     reglas = []
     for i, cruda in enumerate(reglas_crudas):
@@ -58,7 +61,7 @@ def desde_dict(datos: dict[str, Any]) -> BaseDeConocimiento:
 
     base = BaseDeConocimiento(
         nombre=datos.get("nombre", "Sistema experto"),
-        preguntas=preguntas,
+        hechos=entradas,
         reglas=tuple(reglas),
     )
     errores.extend(validar(base))
@@ -70,7 +73,7 @@ def desde_dict(datos: dict[str, Any]) -> BaseDeConocimiento:
 def validar(base: BaseDeConocimiento) -> list[str]:
     """Chequeos de consistencia entre reglas. Devuelve la lista de errores."""
     errores: list[str] = []
-    entradas = set(base.preguntas)
+    entradas = set(base.hechos)
     derivados = base.hechos_derivados
 
     vistos: set[str] = set()
@@ -85,17 +88,21 @@ def validar(base: BaseDeConocimiento) -> list[str]:
                 f"{r.id}: concluye '{r.conclusion}', que es un hecho de entrada "
                 "(las reglas solo pueden concluir hechos derivados)"
             )
-        for hecho, valor in r.condiciones.items():
-            if hecho not in entradas and hecho not in derivados:
+        for hecho, condicion in r.condiciones.items():
+            if hecho in entradas:
+                errores.extend(_validar_condicion(r.id, base.hechos[hecho], condicion))
+            elif hecho not in derivados:
                 errores.append(
                     f"{r.id}: la condición '{hecho}' no tiene pregunta "
                     "ni hay regla que la concluya"
                 )
-            elif hecho in derivados and valor is False:
+            elif condicion.esperado is False:
                 errores.append(
                     f"{r.id}: niega el hecho derivado '{hecho}'; solo se pueden "
                     "negar hechos de entrada (un hecho derivado nunca se afirma como falso)"
                 )
+            elif condicion.esperado is not True:
+                errores.append(f"{r.id}: '{hecho}' es un hecho derivado; la condición solo puede ser true")
 
     # Pregunta de reflexión 11: condiciones idénticas generan ambigüedad.
     por_condiciones: dict[frozenset, str] = {}
@@ -132,11 +139,16 @@ def _construir_regla(cruda: Any, indice: int, errores: list[str]) -> Regla | Non
         if not isinstance(cruda.get(campo), str) or not cruda[campo].strip():
             errores.append(f"Regla {id_regla}: falta el campo '{campo}'")
 
-    condiciones = cruda.get("si")
-    if not isinstance(condiciones, dict) or not condiciones:
-        errores.append(f"Regla {id_regla}: 'si' debe ser un objeto no vacío {{hecho: true/false}}")
-    elif not all(isinstance(v, bool) for v in condiciones.values()):
-        errores.append(f"Regla {id_regla}: los valores de 'si' deben ser true o false")
+    condiciones: dict[str, Condicion] = {}
+    crudas = cruda.get("si")
+    if not isinstance(crudas, dict) or not crudas:
+        errores.append(f"Regla {id_regla}: 'si' debe ser un objeto no vacío {{hecho: condición}}")
+    else:
+        for hecho, spec in crudas.items():
+            try:
+                condiciones[hecho] = Condicion.desde(spec)
+            except ValueError as e:
+                errores.append(f"Regla {id_regla}: condición sobre '{hecho}': {e}")
 
     confianza = cruda.get("confianza")
     if isinstance(confianza, bool) or not isinstance(confianza, (int, float)) or not 0 < confianza <= 1:
@@ -163,12 +175,86 @@ def _construir_regla(cruda: Any, indice: int, errores: list[str]) -> Regla | Non
     return Regla(
         id=cruda["id"],
         descripcion=cruda["descripcion"],
-        condiciones=dict(condiciones),
+        condiciones=condiciones,
         conclusion=cruda["entonces"],
         confianza=float(confianza),
         recomendacion=recomendacion,
         advertencia=advertencia,
     )
+
+
+def _construir_hecho(nombre: str, info: Any, errores: list[str]) -> Hecho | None:
+    if not isinstance(info, dict):
+        errores.append(f"El hecho '{nombre}' debe ser un objeto con su 'pregunta'")
+        return None
+    antes = len(errores)
+
+    pregunta = info.get("pregunta")
+    if not isinstance(pregunta, str) or not pregunta.strip():
+        errores.append(f"El hecho '{nombre}' no tiene una 'pregunta' válida")
+
+    tipo = info.get("tipo", SI_NO)
+    if tipo not in TIPOS:
+        errores.append(f"El hecho '{nombre}': 'tipo' debe ser uno de {list(TIPOS)}")
+        return None
+
+    ayuda = info.get("ayuda")
+    if ayuda is not None and (not isinstance(ayuda, str) or not ayuda.strip()):
+        errores.append(f"El hecho '{nombre}': 'ayuda' debe ser texto")
+
+    opciones: tuple[tuple[str, str], ...] = ()
+    if tipo == OPCION:
+        crudas = info.get("opciones")
+        if (not isinstance(crudas, dict) or len(crudas) < 2
+                or not all(isinstance(e, str) and e.strip() for e in crudas.values())):
+            errores.append(f"El hecho '{nombre}': 'opciones' debe ser un objeto con al menos "
+                           "2 opciones {valor: etiqueta}")
+        else:
+            opciones = tuple(crudas.items())
+
+    minimo, maximo = info.get("minimo"), info.get("maximo")
+    unidad = info.get("unidad", "")
+    if tipo == NUMERO:
+        for campo, valor in (("minimo", minimo), ("maximo", maximo)):
+            if valor is not None and not es_numero(valor):
+                errores.append(f"El hecho '{nombre}': '{campo}' debe ser un número")
+        if es_numero(minimo) and es_numero(maximo) and minimo >= maximo:
+            errores.append(f"El hecho '{nombre}': 'minimo' debe ser menor que 'maximo'")
+        if not isinstance(unidad, str):
+            errores.append(f"El hecho '{nombre}': 'unidad' debe ser texto")
+
+    desconocidos = sorted(set(info) - CAMPOS_HECHO[tipo])
+    if desconocidos:
+        errores.append(f"El hecho '{nombre}': campos no válidos para el tipo '{tipo}' {desconocidos} "
+                       f"(permitidos: {sorted(CAMPOS_HECHO[tipo])})")
+
+    if len(errores) > antes:
+        return None
+    return Hecho(nombre=nombre, pregunta=pregunta, tipo=tipo, opciones=opciones, unidad=unidad,
+                 minimo=None if minimo is None else float(minimo),
+                 maximo=None if maximo is None else float(maximo), ayuda=ayuda)
+
+
+def _validar_condicion(id_regla: str, hecho: Hecho, condicion: Condicion) -> list[str]:
+    """La condición debe corresponder al tipo del hecho y poder cumplirse."""
+    if condicion.tipo != hecho.tipo:
+        return [f"{id_regla}: la condición sobre '{hecho.nombre}' ({condicion.a_json()!r}) "
+                f"no corresponde a un hecho de tipo '{hecho.tipo}'"]
+    if hecho.tipo == OPCION:
+        invalidas = sorted(condicion.esperado - set(hecho.valores_opcion))
+        if invalidas:
+            return [f"{id_regla}: '{hecho.nombre}' no tiene las opciones {invalidas} "
+                    f"(opciones: {list(hecho.valores_opcion)})"]
+    if hecho.tipo == NUMERO:
+        inferiores = [n for op, n in condicion.esperado if op in (">", ">=")]
+        superiores = [n for op, n in condicion.esperado if op in ("<", "<=")]
+        if inferiores and superiores:
+            abajo, arriba = max(inferiores), min(superiores)
+            estricto = any(op in (">", "<") and n in (abajo, arriba) for op, n in condicion.esperado)
+            if abajo > arriba or (abajo == arriba and estricto):
+                return [f"{id_regla}: la condición sobre '{hecho.nombre}' "
+                        f"({condicion.describir(hecho)}) nunca se puede cumplir"]
+    return []
 
 
 def _buscar_ciclo(base: BaseDeConocimiento) -> list[str] | None:

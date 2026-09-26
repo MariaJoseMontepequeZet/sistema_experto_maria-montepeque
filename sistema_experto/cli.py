@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from .conocimiento import RUTA_POR_DEFECTO, ErrorDeConocimiento, cargar
-from .modelo import ORIGEN_USUARIO, BaseDeConocimiento
+from .modelo import NUMERO, OPCION, ORIGEN_USUARIO, BaseDeConocimiento, Condicion, Hecho, Valor
 from .motor import (
     CONTRADICHA,
     CUMPLIDA,
@@ -42,19 +42,55 @@ def preguntar_si_no(pregunta: str) -> bool:
         print("  ⚠ Por favor escribe s o n.")
 
 
-def preguntar_sintoma(numero: int, pregunta: Pregunta) -> bool | None:
-    """s = sí, n = no, ns = no sé, ? = explica por qué se hace la pregunta."""
+def preguntar_sintoma(numero: int, pregunta: Pregunta) -> Valor:
+    """
+    Pide la respuesta según el tipo de pregunta:
+      sí/no  → s, n        opción → su número        número → el valor
+    En todos los casos: ns = no sé, ? = explica por qué se hace la pregunta.
+    """
+    entrada = pregunta.entrada or Hecho(pregunta.hecho, pregunta.texto)
+    print(f"  {numero}. {pregunta.texto}")
+    if entrada.tipo == OPCION:
+        for i, (_, etiqueta) in enumerate(entrada.opciones, 1):
+            print(f"       {i}) {etiqueta}")
+        formato = f"1-{len(entrada.opciones)}/ns/?"
+    elif entrada.tipo == NUMERO:
+        formato = f"número{' en ' + entrada.unidad if entrada.unidad else ''}/ns/?"
+    else:
+        formato = "s/n/ns/?"
+
     while True:
-        resp = input(f"  {numero}. {pregunta.texto} [s/n/ns/?]: ").strip().lower()
-        if resp in RESPUESTAS_SINTOMA:
-            return RESPUESTAS_SINTOMA[resp]
+        resp = input(f"     [{formato}]: ").strip().lower()
+        if resp == "ns":
+            return None
         if resp == "?":
             explicar_pregunta(pregunta)
-        else:
-            print("  ⚠ Escribe s (sí), n (no), ns (no sé) o ? (¿por qué me preguntas esto?).")
+            continue
+        valor = interpretar_respuesta(entrada, resp)
+        if valor is not None:
+            return valor
+        print(f"  ⚠ Respuesta no válida. Escribe {formato.replace('/', ', ')} "
+              "(ns = no sé, ? = ¿por qué me preguntas esto?).")
+
+
+def interpretar_respuesta(entrada: Hecho, texto: str) -> Valor:
+    """Convierte lo que escribió el usuario al valor del hecho, o None si no es válido."""
+    if entrada.tipo == OPCION:
+        if texto.isdigit() and 1 <= int(texto) <= len(entrada.opciones):
+            return entrada.opciones[int(texto) - 1][0]
+        return None
+    if entrada.tipo == NUMERO:
+        try:
+            valor = float(texto.replace(",", "."))
+        except ValueError:
+            return None
+        return valor if entrada.admite(valor) else None
+    return RESPUESTAS_SINTOMA.get(texto) if texto in ("s", "n") else None
 
 
 def explicar_pregunta(pregunta: Pregunta) -> None:
+    if pregunta.entrada and pregunta.entrada.ayuda:
+        print(f"     💡 {pregunta.entrada.ayuda}")
     if not pregunta.hipotesis:
         print("     Ninguna hipótesis abierta depende de esta respuesta;"
               " se pregunta porque estás en modo --completo.")
@@ -64,12 +100,12 @@ def explicar_pregunta(pregunta: Pregunta) -> None:
         print(f"       • [{regla.id}] {regla.descripcion} ({regla.confianza * 100:.0f}%)")
 
 
-def recolectar_respuestas(base: BaseDeConocimiento, completo: bool) -> dict[str, bool | None]:
+def recolectar_respuestas(base: BaseDeConocimiento, completo: bool) -> dict[str, Valor]:
     """
     Modo dinámico: pregunta solo lo que ayuda a alguna hipótesis que sigue abierta.
     Modo completo: hace todas las preguntas en el orden del archivo.
     """
-    respuestas: dict[str, bool | None] = {}
+    respuestas: dict[str, Valor] = {}
     while True:
         if completo:
             faltantes = [h for h in base.preguntas if h not in respuestas]
@@ -81,11 +117,15 @@ def recolectar_respuestas(base: BaseDeConocimiento, completo: bool) -> dict[str,
         respuestas[pregunta.hecho] = preguntar_sintoma(len(respuestas) + 1, pregunta)
 
 
-def formatear_condiciones(condiciones: dict[str, bool]) -> str:
-    return ", ".join(f"{h}={'sí' if v else 'no'}" for h, v in condiciones.items())
+def formatear_condiciones(base: BaseDeConocimiento, condiciones: dict[str, Condicion]) -> str:
+    return ", ".join(f"{h}={base.describir(h, c)}" for h, c in condiciones.items())
 
 
-def mostrar_inferencia(inferencia: Inferencia, mostrar_todos: bool,
+def formatear_respuestas(base: BaseDeConocimiento, respuestas: dict[str, Valor]) -> str:
+    return ", ".join(f"{h}={base.formatear(h, v)}" for h, v in respuestas.items())
+
+
+def mostrar_inferencia(base: BaseDeConocimiento, inferencia: Inferencia, mostrar_todos: bool,
                        no_sabe: list[str] | None = None) -> None:
     print()
     print(LINEA_GRUESA)
@@ -93,7 +133,7 @@ def mostrar_inferencia(inferencia: Inferencia, mostrar_todos: bool,
     print(LINEA_GRUESA)
     del_usuario = {h: v for h, v in inferencia.hechos.valores.items()
                    if inferencia.hechos.origen[h] == [ORIGEN_USUARIO]}
-    print(f"  Respuestas: {formatear_condiciones(del_usuario) or '—'}")
+    print(f"  Respuestas: {formatear_respuestas(base, del_usuario) or '—'}")
     if no_sabe:
         print(f"  Respondidos con 'no sé': {', '.join(no_sabe)}")
     print()
@@ -132,7 +172,7 @@ def mostrar_inferencia(inferencia: Inferencia, mostrar_todos: bool,
     print(LINEA_FINA)
     for d in inferencia.justificacion(principal.hecho):
         print(f"  Ciclo {d.ciclo}: [{d.regla.id}] {d.regla.descripcion}")
-        print(f"      SI {formatear_condiciones(d.regla.condiciones)}")
+        print(f"      SI {formatear_condiciones(base, d.regla.condiciones)}")
         print(f"      ENTONCES {d.regla.conclusion}  ({d.certeza * 100:.0f}%)")
     if not mostrar_todos and len(diagnosticos) > 1:
         otros = [f"{dg.descripcion} ({dg.certeza * 100:.0f}%)" for dg in diagnosticos[1:]]
@@ -140,7 +180,7 @@ def mostrar_inferencia(inferencia: Inferencia, mostrar_todos: bool,
     print(LINEA_GRUESA)
 
 
-def mostrar_analisis(analisis: AnalisisRegla, nivel: int = 0) -> None:
+def mostrar_analisis(base: BaseDeConocimiento, analisis: AnalisisRegla, nivel: int = 0) -> None:
     sangria = "  " + "    " * nivel
     r = analisis.regla
     if analisis.se_activa:
@@ -153,10 +193,9 @@ def mostrar_analisis(analisis: AnalisisRegla, nivel: int = 0) -> None:
     print(f"{sangria}¿Se activa?    : {estado}")
     for c in analisis.condiciones:
         simbolo = {CUMPLIDA: "✓", CONTRADICHA: "✗"}.get(c.estado, "?")
-        esperado = "sí" if c.esperado else "no"
-        print(f"{sangria}  {simbolo} {c.hecho} = {esperado}  [{c.estado}]")
+        print(f"{sangria}  {simbolo} {c.hecho} = {base.describir(c.hecho, c.esperado)}  [{c.estado}]")
         for sub in c.subobjetivos:
-            mostrar_analisis(sub, nivel + 1)
+            mostrar_analisis(base, sub, nivel + 1)
     if nivel == 0 and analisis.por_preguntar:
         print(f"{sangria}Falta confirmar: {', '.join(analisis.por_preguntar)}")
 
@@ -165,7 +204,7 @@ def consultar(base: BaseDeConocimiento, ruta_exportacion: Path, completo: bool =
     print()
     print("=" * 55)
     print(f"  SISTEMA EXPERTO: {base.nombre}")
-    print("  Responde: s (sí) · n (no) · ns (no sé)")
+    print("  Responde: s (sí) · n (no) · el número de la opción · ns (no sé)")
     print("  Escribe ? para saber por qué se hace una pregunta")
     print("-" * 55)
     print(f"  {AVISO}")
@@ -179,7 +218,7 @@ def consultar(base: BaseDeConocimiento, ruta_exportacion: Path, completo: bool =
     print()
     mostrar_todos = preguntar_si_no("¿Ver ranking completo de diagnósticos?")
     no_sabe = [h for h, v in respuestas.items() if v is None]
-    mostrar_inferencia(encadenar_hacia_adelante(base, respuestas), mostrar_todos, no_sabe)
+    mostrar_inferencia(base, encadenar_hacia_adelante(base, respuestas), mostrar_todos, no_sabe)
 
     print()
     print("  OPCIONES ADICIONALES")
@@ -195,7 +234,7 @@ def consultar(base: BaseDeConocimiento, ruta_exportacion: Path, completo: bool =
         print(LINEA_GRUESA)
         try:
             for analisis in encadenar_hacia_atras(base, meta, respuestas):
-                mostrar_analisis(analisis)
+                mostrar_analisis(base, analisis)
                 print()
         except LookupError as e:
             print(f"  ⚠ {e}")

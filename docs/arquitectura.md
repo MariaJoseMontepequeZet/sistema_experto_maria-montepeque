@@ -8,14 +8,14 @@ Cómo está construido el sistema experto por dentro. Para usarlo, ver el [READM
 
 Vive en un archivo JSON, separado del código, con dos partes:
 
-- **`hechos`**: los síntomas que se le preguntan al usuario, cada uno con su pregunta.
-- **`reglas`**: "SI estas condiciones ENTONCES este hecho". Cada condición indica si el hecho tiene que ser verdadero (`true`) o falso (`false`), así que la negación sale natural. Las reglas que tienen `recomendacion` son diagnósticos finales; las que no la tienen producen **hechos intermedios** que usan otras reglas.
+- **`hechos`**: lo que se le pregunta al usuario. Cada hecho tiene su pregunta y un tipo de respuesta: sí/no (por defecto), opción múltiple o número.
+- **`reglas`**: "SI estas condiciones ENTONCES este hecho". Cada condición depende del tipo del hecho: `true`/`false`, una opción (`"laptop"`), una lista de opciones (`["ninguno", "uno_corto"]`) o un rango numérico (`{">=": 90}`). Las reglas que tienen `recomendacion` son diagnósticos finales; las que no la tienen producen **hechos intermedios** que usan otras reglas.
 
 ```json
 {
   "id": "R02",
   "descripcion": "Falla de RAM",
-  "si": { "arranque_sin_video": true, "pitidos_arranque": true },
+  "si": { "arranque_sin_video": true, "patron_pitidos": "repetidos" },
   "entonces": "falla_ram",
   "recomendacion": "Probar con módulos de RAM de a uno",
   "confianza": 0.88
@@ -70,7 +70,9 @@ Es la única parte que usa `input()` y `print()`. En cada paso le pide al motor 
 3. Elige la que necesitan más hipótesis a la vez. Si hay empate, prefiere la de mayor confianza y luego el orden del JSON.
 4. Si no queda ninguna, termina la consulta.
 
-Una prueba recorre todo el árbol de decisión y verifica las 2^14 = 16 384 combinaciones posibles de respuestas. En todas, el resultado es el mismo que si se hubieran hecho todas las preguntas: preguntar menos nunca hace perder un diagnóstico.
+Una prueba recorre todo el árbol de decisión (más de 10 000 caminos de consulta, con todas las opciones y los valores límite de cada umbral numérico). En cada final comprueba que las respuestas no preguntadas no habrían cambiado el resultado: preguntar menos nunca hace perder un diagnóstico.
+
+Para que el motor sea rápido, antes de encadenar descarta una sola vez las reglas que ya contradicen alguna respuesta: como las respuestas no cambian durante la inferencia, esas reglas nunca podrían dispararse.
 
 ## Interfaz web y diagramas
 

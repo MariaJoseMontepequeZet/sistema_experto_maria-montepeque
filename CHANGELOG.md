@@ -4,6 +4,29 @@ Todos los cambios relevantes del proyecto se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.4.0] - 2026-09-25
+
+### Agregado
+- Tres tipos de pregunta: sí/no, opción múltiple y numérica (con unidad, rango y texto de ayuda),
+  en la consola y en la interfaz web. El formato anterior del JSON sigue siendo válido.
+- Condiciones por tipo: una opción, una lista de opciones o comparaciones numéricas (`>`, `>=`, `<`, `<=`).
+- Nuevos diagnósticos: cargador o batería de laptop, problema de monitor o cable de video,
+  sobrecalentamiento confirmado por temperatura y fuente de poder inestable.
+- El validador comprueba que cada condición corresponda al tipo de su hecho, que las opciones
+  existan y que los rangos numéricos se puedan cumplir.
+
+### Cambiado
+- "¿Hay pitidos?" pasa a ser el **patrón de pitidos**: un pitido corto (arranque normal) ya no se
+  diagnostica como falla de RAM, y cada patrón apunta a su causa (RAM, video o monitor).
+- La pila del BIOS se detecta sin exigir pitidos.
+- La fuente de poder se distingue del cargador según el tipo de equipo.
+- El motor descarta de entrada las reglas que contradicen alguna respuesta: la inferencia es varias
+  veces más rápida.
+- La prueba exhaustiva recorre el árbol de decisión completo con opciones y valores límite numéricos.
+
+### Corregido
+- La interfaz web fallaba con límites numéricos enteros en el JSON (tipos mezclados en Streamlit).
+
 ## [1.3.0] - 2026-09-25
 
 ### Agregado
@@ -52,6 +75,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Cambiado
 - Arquitectura separada en conocimiento, motor e interfaz; hechos booleanos con negación.
 
+[1.4.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.1.0...v1.2.0

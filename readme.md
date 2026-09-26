@@ -17,7 +17,8 @@ proyecto con arquitectura modular, pruebas automatizadas, integración continua 
 
 ## ✨ Características
 
-- **Consulta dinámica:** solo pregunta lo que sirve para las hipótesis que siguen abiertas. Si el equipo no enciende, termina en 2 preguntas en lugar de 14.
+- **Consulta dinámica:** solo pregunta lo que sirve para las hipótesis que siguen abiertas. Si el equipo no enciende, termina en 3 preguntas en lugar de 16.
+- **Tres tipos de pregunta:** sí/no, opción múltiple (por ejemplo, el patrón de pitidos) y numéricas con unidad (por ejemplo, la temperatura del procesador).
 - **Explica su razonamiento:** muestra la cadena de reglas que llevó al diagnóstico, en texto y como diagrama.
 - **Encadenamiento hacia adelante y hacia atrás:** de los síntomas al diagnóstico, y de una hipótesis a los síntomas que la confirmarían.
 - **Certeza por diagnóstico**, propagada a lo largo de la cadena y combinada con el modelo MYCIN cuando varias reglas coinciden.
@@ -72,8 +73,9 @@ flowchart LR
 3. Con las respuestas, el **encadenamiento hacia adelante** dispara reglas hasta no poder deducir nada nuevo; las conclusiones intermedias alimentan a otras reglas.
 4. La interfaz muestra los diagnósticos ordenados por certeza, sus advertencias y la cadena de razonamiento.
 
-Una prueba recorre el árbol de decisión completo y verifica las **16 384 combinaciones posibles de
-respuestas**: preguntar solo lo relevante nunca hace perder un diagnóstico.
+Una prueba recorre el **árbol de decisión completo** (más de 10 000 caminos posibles de consulta) y, en
+cada final, comprueba que las respuestas no preguntadas no habrían cambiado el resultado: preguntar
+solo lo relevante nunca hace perder un diagnóstico.
 
 📖 Más detalle en [Arquitectura](docs/arquitectura.md).
 

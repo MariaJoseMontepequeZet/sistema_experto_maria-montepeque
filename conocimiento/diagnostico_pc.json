@@ -2,15 +2,42 @@
   "nombre": "Diagnóstico de PC",
   "hechos": {
     "enciende":                  { "pregunta": "¿El equipo arranca al presionar el botón (giran ventiladores o se escucha actividad)?" },
-    "luces_led":                 { "pregunta": "¿Se enciende alguna luz LED (placa madre, chasis o fuente)?" },
-    "pitidos_arranque":          { "pregunta": "¿Se escuchan pitidos (beeps) al encender?" },
+    "tipo_equipo": {
+      "pregunta": "¿Qué tipo de equipo es?",
+      "tipo": "opcion",
+      "opciones": {
+        "escritorio": "Computadora de escritorio",
+        "laptop": "Laptop"
+      }
+    },
+    "luces_led":                 { "pregunta": "¿Se enciende alguna luz LED (placa madre, chasis, fuente o cargador)?" },
     "hay_video":                 { "pregunta": "¿La pantalla muestra imagen al encender?" },
+    "patron_pitidos": {
+      "pregunta": "¿Qué pitidos (beeps) se escuchan al encender?",
+      "tipo": "opcion",
+      "opciones": {
+        "ninguno": "Ningún pitido",
+        "uno_corto": "Un solo pitido corto",
+        "repetidos": "Pitidos repetidos o continuos",
+        "largo_y_cortos": "Un pitido largo seguido de dos o tres cortos",
+        "otro": "Otro patrón"
+      },
+      "ayuda": "Un pitido corto suele indicar que el arranque fue normal. Los códigos varían según el fabricante de la placa madre: si escuchas otro patrón, consulta su manual."
+    },
     "inicia_lento":              { "pregunta": "¿El equipo tarda más de 3 minutos en iniciar?" },
     "disco_al_100":              { "pregunta": "¿El administrador de tareas muestra disco al 100%?" },
     "ventilador_siempre_activo": { "pregunta": "¿El ventilador está siempre a máxima velocidad?" },
     "pantalla_azul_frecuente":   { "pregunta": "¿Aparece pantalla azul (BSOD) con frecuencia?" },
     "se_apaga_solo":             { "pregunta": "¿El equipo se apaga solo sin advertencia?" },
     "calor_excesivo":            { "pregunta": "¿El chasis está muy caliente al tacto?" },
+    "temperatura_cpu": {
+      "pregunta": "¿Qué temperatura marca el procesador cuando el equipo está en uso?",
+      "tipo": "numero",
+      "unidad": "°C",
+      "minimo": 0,
+      "maximo": 125,
+      "ayuda": "Puedes verla con programas gratuitos como HWMonitor o Core Temp. Si no puedes medirla, responde 'no sé'."
+    },
     "fecha_hora_incorrecta":     { "pregunta": "¿La fecha y hora se reinician cada vez que apaga el equipo?" },
     "conexion_red":              { "pregunta": "¿El equipo se conecta a alguna red (WiFi/Ethernet)?" },
     "otras_apps_funcionan":      { "pregunta": "¿Las demás aplicaciones funcionan con normalidad?" },
@@ -34,16 +61,25 @@
     {
       "id": "R01",
       "descripcion": "Fuente de poder dañada",
-      "si": { "enciende": false, "luces_led": false },
+      "si": { "enciende": false, "tipo_equipo": "escritorio", "luces_led": false },
       "entonces": "falla_fuente",
       "recomendacion": "Revisar o reemplazar la fuente de poder",
       "advertencia": "Nunca abras la fuente de poder: sus capacitores guardan carga peligrosa aunque esté desconectada. Si hay que reemplazarla, cámbiala completa.",
       "confianza": 0.92
     },
     {
+      "id": "R11",
+      "descripcion": "Cargador o batería de laptop",
+      "si": { "enciende": false, "tipo_equipo": "laptop", "luces_led": false },
+      "entonces": "falla_alimentacion_laptop",
+      "recomendacion": "Probar con otro cargador compatible y, si la batería es removible, retirarla y encender solo con el cargador conectado",
+      "advertencia": "Usa solo cargadores con el voltaje indicado por el fabricante. Si la batería está hinchada, no la uses ni la perfores: llévala a un punto de reciclaje.",
+      "confianza": 0.85
+    },
+    {
       "id": "R02",
       "descripcion": "Falla de RAM",
-      "si": { "arranque_sin_video": true, "pitidos_arranque": true },
+      "si": { "arranque_sin_video": true, "patron_pitidos": "repetidos" },
       "entonces": "falla_ram",
       "recomendacion": "Probar con módulos de RAM de a uno",
       "advertencia": "Apaga el equipo, desconéctalo de la corriente y toca una superficie metálica antes de manipular la RAM para descargar la electricidad estática.",
@@ -52,10 +88,27 @@
     {
       "id": "R03",
       "descripcion": "Falla de tarjeta de video",
-      "si": { "arranque_sin_video": true, "pitidos_arranque": false },
+      "si": { "arranque_sin_video": true, "patron_pitidos": "largo_y_cortos" },
       "entonces": "falla_video",
       "recomendacion": "Revisar tarjeta de video y conexiones del monitor",
       "advertencia": "Apaga y desconecta el equipo antes de retirar o reconectar la tarjeta de video.",
+      "confianza": 0.90
+    },
+    {
+      "id": "R12",
+      "descripcion": "Falla de tarjeta de video",
+      "si": { "arranque_sin_video": true, "patron_pitidos": "ninguno" },
+      "entonces": "falla_video",
+      "recomendacion": "Revisar tarjeta de video y conexiones del monitor; si el problema continúa, puede ser la placa madre",
+      "advertencia": "Apaga y desconecta el equipo antes de retirar o reconectar la tarjeta de video.",
+      "confianza": 0.70
+    },
+    {
+      "id": "R13",
+      "descripcion": "Problema de monitor o cable de video",
+      "si": { "arranque_sin_video": true, "patron_pitidos": "uno_corto" },
+      "entonces": "falla_monitor",
+      "recomendacion": "Revisar el cable de video, la entrada seleccionada en el monitor y probar con otro monitor o cable",
       "confianza": 0.80
     },
     {
@@ -94,13 +147,31 @@
       "confianza": 0.90
     },
     {
+      "id": "R14",
+      "descripcion": "Sobrecalentamiento",
+      "si": { "enciende": true, "temperatura_cpu": { ">=": 90 } },
+      "entonces": "sobrecalentamiento",
+      "recomendacion": "Limpiar ventiladores y disipador, y reaplicar pasta térmica",
+      "advertencia": "Apaga y desconecta el equipo antes de abrirlo. No uses aspiradora sobre los componentes; usa aire comprimido con el ventilador sujeto.",
+      "confianza": 0.90
+    },
+    {
+      "id": "R15",
+      "descripcion": "Fuente de poder inestable",
+      "si": { "enciende": true, "tipo_equipo": "escritorio", "se_apaga_solo": true, "temperatura_cpu": { "<": 80 } },
+      "entonces": "falla_fuente",
+      "recomendacion": "Probar con otra fuente de poder de la potencia adecuada",
+      "advertencia": "Nunca abras la fuente de poder: sus capacitores guardan carga peligrosa aunque esté desconectada. Si hay que reemplazarla, cámbiala completa.",
+      "confianza": 0.65
+    },
+    {
       "id": "R08",
       "descripcion": "CMOS / Batería de BIOS agotada",
-      "si": { "enciende": true, "fecha_hora_incorrecta": true, "pitidos_arranque": true },
+      "si": { "enciende": true, "fecha_hora_incorrecta": true },
       "entonces": "pila_bios_agotada",
       "recomendacion": "Reemplazar la pila CR2032 de la placa madre",
       "advertencia": "Apaga y desconecta el equipo antes de retirar la pila. Anota la configuración del BIOS: se restablecerá al cambiarla.",
-      "confianza": 0.83
+      "confianza": 0.85
     },
     {
       "id": "R09",
@@ -113,7 +184,7 @@
     {
       "id": "R10",
       "descripcion": "Falla de controlador USB",
-      "si": { "enciende": true, "perifericos_responden": false, "pitidos_arranque": false },
+      "si": { "enciende": true, "perifericos_responden": false, "patron_pitidos": ["ninguno", "uno_corto"] },
       "entonces": "falla_usb",
       "recomendacion": "Desinstalar y reinstalar controladores USB en el Administrador de dispositivos",
       "confianza": 0.75

@@ -3,6 +3,7 @@ import random
 import unittest
 
 from sistema_experto.conocimiento import cargar
+from sistema_experto.modelo import NUMERO, OPCION
 from sistema_experto.motor import (
     encadenar_hacia_adelante,
     hipotesis_abiertas,
@@ -11,7 +12,23 @@ from sistema_experto.motor import (
 )
 
 BASE = cargar()
-HECHOS = list(BASE.preguntas)
+HECHOS = list(BASE.hechos)
+
+
+def dominio(hecho: str) -> tuple:
+    """Respuestas posibles de un hecho. Para los numéricos basta con el valor de cada umbral
+    usado en las reglas y uno justo por debajo: es donde puede cambiar el resultado."""
+    entrada = BASE.hechos[hecho]
+    if entrada.tipo == OPCION:
+        return entrada.valores_opcion
+    if entrada.tipo == NUMERO:
+        umbrales = {n for r in BASE.reglas if hecho in r.condiciones
+                    for _, n in r.condiciones[hecho].esperado}
+        return tuple(sorted({u + d for u in umbrales for d in (-0.5, 0)}))
+    return (True, False)
+
+
+DOMINIOS = {h: dominio(h) for h in HECHOS}
 
 
 def simular(verdad: dict) -> dict:
@@ -34,17 +51,22 @@ class TestConsultaDinamica(unittest.TestCase):
         confianzas = [r.confianza for r in pregunta.hipotesis]
         self.assertEqual(confianzas, sorted(confianzas, reverse=True))
 
-    def test_si_no_enciende_solo_hace_dos_preguntas(self):
-        respuestas = simular({h: False for h in HECHOS})
-        self.assertEqual(list(respuestas), ["enciende", "luces_led"])
+    def test_si_no_enciende_solo_hace_tres_preguntas(self):
+        verdad = {h: False for h in HECHOS} | {"tipo_equipo": "escritorio"}
+        respuestas = simular(verdad)
+        self.assertEqual(list(respuestas), ["enciende", "tipo_equipo", "luces_led"])
         self.assertEqual(diagnosticos(respuestas), {"falla_fuente"})
 
+    def test_la_pregunta_incluye_su_tipo_y_opciones(self):
+        pregunta = pregunta_sobre(BASE, {}, "patron_pitidos")
+        self.assertEqual(pregunta.entrada.tipo, OPCION)
+        self.assertIn("uno_corto", pregunta.entrada.valores_opcion)
+        self.assertTrue(pregunta.entrada.ayuda)
+
     def test_no_pregunta_por_hipotesis_descartadas(self):
-        pregunta = siguiente_pregunta(BASE, {"enciende": True, "pitidos_arranque": True})
+        pregunta = siguiente_pregunta(BASE, {"enciende": True, "patron_pitidos": "repetidos"})
         ids = {r.id for r in pregunta.hipotesis}
-        self.assertNotIn("R01", ids)   # requiere enciende = no
-        self.assertNotIn("R03", ids)   # requiere pitidos = no
-        self.assertNotIn("R10", ids)
+        self.assertTrue(ids.isdisjoint({"R01", "R11", "R03", "R12", "R13", "R10"}), ids)
 
     def test_no_se_no_se_vuelve_a_preguntar(self):
         respuestas = {"enciende": None}
@@ -64,34 +86,45 @@ class TestConsultaDinamica(unittest.TestCase):
         pregunta = pregunta_sobre(BASE, {"enciende": False}, "disco_al_100")
         self.assertEqual(pregunta.hipotesis, ())
 
-    def test_equivale_a_preguntar_todo_en_todas_las_combinaciones(self):
+    def test_nunca_pierde_un_diagnostico_por_preguntar_menos(self):
         """
-        Nunca se pierde un diagnóstico por preguntar menos. Recorre el árbol de
-        decisión de la consulta dinámica y, en cada hoja, comprueba que para
-        CUALQUIER valor de los hechos no preguntados el resultado sería el mismo.
-        En total cubre las 2^14 combinaciones posibles de respuestas.
+        Recorre el árbol de decisión COMPLETO de la consulta dinámica (cada rama con todas
+        las respuestas posibles) y, en cada hoja, comprueba que el resultado sería el mismo
+        para las respuestas que no se preguntaron: todas si son pocas combinaciones, o una
+        muestra reproducible si son muchas.
         """
-        casos = 0
+        azar = random.Random(2026)
+        hojas = comprobaciones = 0
         pendientes = [{}]
         while pendientes:
             respuestas = pendientes.pop()
             pregunta = siguiente_pregunta(BASE, respuestas)
             if pregunta is not None:
-                for valor in (True, False):
+                for valor in DOMINIOS[pregunta.hecho]:
                     pendientes.append({**respuestas, pregunta.hecho: valor})
                 continue
+
+            hojas += 1
             esperado = diagnosticos(respuestas)
             sin_preguntar = [h for h in HECHOS if h not in respuestas]
-            for valores in itertools.product((False, True), repeat=len(sin_preguntar)):
+            combinaciones = 1
+            for h in sin_preguntar:
+                combinaciones *= len(DOMINIOS[h])
+            if combinaciones <= 16:
+                completar = itertools.product(*(DOMINIOS[h] for h in sin_preguntar))
+            else:
+                completar = ([azar.choice(DOMINIOS[h]) for h in sin_preguntar] for _ in range(4))
+            for valores in completar:
                 verdad = {**respuestas, **dict(zip(sin_preguntar, valores, strict=True))}
                 self.assertEqual(esperado, diagnosticos(verdad), verdad)
-                casos += 1
-        self.assertEqual(casos, 2 ** len(HECHOS))
+                comprobaciones += 1
+        self.assertGreater(hojas, 10_000)   # la documentación cita esta cifra
+        self.assertGreater(comprobaciones, hojas * 3)
 
     def test_equivale_a_preguntar_todo_con_no_se(self):
         azar = random.Random(42)
         for _ in range(300):
-            verdad = {h: azar.choice((True, False, None)) for h in HECHOS}
+            verdad = {h: azar.choice((*DOMINIOS[h], None)) for h in HECHOS}
             self.assertEqual(diagnosticos(simular(verdad)), diagnosticos(verdad), verdad)
 
 
