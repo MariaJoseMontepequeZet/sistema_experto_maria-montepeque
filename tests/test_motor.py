@@ -1,14 +1,27 @@
 import copy
 import json
+import random
 import unittest
 
 from sistema_experto.conocimiento import RUTA_POR_DEFECTO, ErrorDeConocimiento, cargar, desde_dict
-from sistema_experto.modelo import NUMERO, OPCION, SI_NO, BaseDeHechos, Condicion, Hecho, Regla
+from sistema_experto.modelo import (
+    NUMERO,
+    OPCION,
+    SI_NO,
+    UMBRAL_CERTEZA,
+    BaseDeConocimiento,
+    BaseDeHechos,
+    Condicion,
+    Hecho,
+    Regla,
+    combinar_certezas,
+)
 from sistema_experto.motor import (
     encadenar_hacia_adelante,
     encadenar_hacia_atras,
     equiparar,
     exportar_red,
+    pregunta_sobre,
     resolver_conflictos,
 )
 
@@ -27,7 +40,8 @@ def respuestas(**valores) -> dict:
 def equipo_sano(**valores) -> dict:
     """Equipo que enciende y funciona bien; se agregan solo los síntomas del caso."""
     return respuestas(**{"enciende": True, "luces_led": True, "hay_video": True, "conexion_red": True,
-                         "perifericos_responden": True, "otras_apps_funcionan": True, **valores})
+                         "perifericos_responden": True, "otras_apps_funcionan": True,
+                         "otros_dispositivos_conectan": True, **valores})
 
 
 def diagnosticos(r: dict) -> dict[str, float]:
@@ -36,8 +50,8 @@ def diagnosticos(r: dict) -> dict[str, float]:
 
 class TestBaseDeConocimiento(unittest.TestCase):
     def test_la_base_incluida_es_valida(self):
-        self.assertEqual(len(BASE.reglas), 17)
-        self.assertEqual(len(BASE.hechos), 16)
+        self.assertEqual(len(BASE.reglas), 21)
+        self.assertEqual(len(BASE.hechos), 17)
         self.assertEqual({h.tipo for h in BASE.hechos.values()}, {SI_NO, OPCION, NUMERO})
 
     def _datos(self):
@@ -207,7 +221,7 @@ class TestEncadenamientoHaciaAdelante(unittest.TestCase):
         abre_equipo = ("falla_fuente", "falla_ram", "falla_video", "sobrecalentamiento",
                        "pila_bios_agotada", "falla_alimentacion_laptop")
         for regla in BASE.reglas:
-            if regla.conclusion in abre_equipo:
+            if regla.conclusion in abre_equipo and regla.es_diagnostico:
                 self.assertTrue(regla.advertencia, f"{regla.id} no tiene advertencia")
 
     def test_encadena_hechos_intermedios(self):
@@ -315,6 +329,127 @@ class TestEncadenamientoHaciaAdelante(unittest.TestCase):
         self.assertEqual(equiparar([regla], hechos, {"A"}), [])
 
 
+def base_de_prueba(*reglas: dict, hechos: str = "abc") -> BaseDeConocimiento:
+    return desde_dict({"hechos": {h: {"pregunta": f"{h}?"} for h in hechos}, "reglas": list(reglas)})
+
+
+class TestEvidencia(unittest.TestCase):
+    def test_combinacion_mycin(self):
+        self.assertAlmostEqual(combinar_certezas(0.6, 0.5), 0.8)       # ambas a favor
+        self.assertAlmostEqual(combinar_certezas(-0.5, -0.5), -0.75)   # ambas en contra
+        self.assertAlmostEqual(combinar_certezas(0.9, -0.6), 0.75)     # signos opuestos
+        self.assertAlmostEqual(combinar_certezas(1, -1), 0.0)          # contradicción total
+
+    def test_combinacion_es_conmutativa_y_acotada(self):
+        azar = random.Random(7)
+        for _ in range(1000):
+            a, b = azar.uniform(-1, 1), azar.uniform(-1, 1)
+            self.assertAlmostEqual(combinar_certezas(a, b), combinar_certezas(b, a))
+            self.assertLessEqual(abs(combinar_certezas(a, b)), 1)
+
+    def test_evidencia_en_contra_baja_la_certeza(self):
+        # R07 (chasis caliente, 0.9) y E01 (procesador a 60 °C, -0.6) → 0.75
+        inferencia = encadenar_hacia_adelante(
+            BASE, equipo_sano(se_apaga_solo=True, calor_excesivo=True, temperatura_cpu=60))
+        [sobrecalentamiento] = [dg for dg in inferencia.diagnosticos if dg.hecho == "sobrecalentamiento"]
+        self.assertAlmostEqual(sobrecalentamiento.certeza, 0.75)
+        self.assertEqual([d.regla.id for d in sobrecalentamiento.a_favor], ["R07"])
+        self.assertEqual([d.regla.id for d in sobrecalentamiento.en_contra], ["E01"])
+        # y aparece la alternativa: la fuente de poder
+        self.assertIn("falla_fuente", {dg.hecho for dg in inferencia.diagnosticos})
+
+    def test_evidencia_a_favor_refuerza(self):
+        r = equipo_sano(se_apaga_solo=True, calor_excesivo=True, ventilador_siempre_activo=True)
+        self.assertEqual(diagnosticos(r), {"sobrecalentamiento": 0.93})
+
+    def test_evidencia_a_favor_sola_no_crea_un_diagnostico(self):
+        self.assertEqual(diagnosticos(equipo_sano(ventilador_siempre_activo=True)), {})
+
+    def test_evidencia_en_contra_puede_descartar(self):
+        inferencia = encadenar_hacia_adelante(
+            BASE, equipo_sano(conexion_red=False, otros_dispositivos_conectan=False))
+        self.assertEqual([dg.hecho for dg in inferencia.diagnosticos], ["falla_router"])
+        [descartado] = inferencia.descartados
+        self.assertEqual(descartado.hecho, "falla_red")
+        self.assertLessEqual(descartado.certeza, UMBRAL_CERTEZA)
+        self.assertEqual([d.regla.id for d in descartado.en_contra], ["E03"])
+
+    def test_umbral(self):
+        base = base_de_prueba(
+            {"id": "R1", "descripcion": "d", "si": {"a": True}, "entonces": "d",
+             "recomendacion": "r", "confianza": 0.3},
+            {"id": "E1", "descripcion": "e", "si": {"b": True}, "entonces": "d", "confianza": -0.2},
+            hechos="ab",
+        )
+        solo = encadenar_hacia_adelante(base, {"a": True, "b": False})
+        con_contra = encadenar_hacia_adelante(base, {"a": True, "b": True})
+        self.assertAlmostEqual(solo.principal.certeza, 0.3)
+        self.assertEqual(con_contra.diagnosticos, [])        # (0.3 - 0.2) / 0.8 = 0.125 < 0.2
+        self.assertAlmostEqual(con_contra.descartados[0].certeza, 0.125)
+
+    def test_toda_la_evidencia_se_reune_antes_de_usar_un_hecho(self):
+        # D depende de x, que tiene dos reglas; aunque D esté primera en el archivo,
+        # debe usar la certeza combinada de x: 0.8 × (0.5 + 0.5 × 0.5) = 0.6
+        base = base_de_prueba(
+            {"id": "D", "descripcion": "d", "si": {"x": True}, "entonces": "y",
+             "recomendacion": "r", "confianza": 0.8},
+            {"id": "I1", "descripcion": "i1", "si": {"a": True}, "entonces": "x", "confianza": 0.5},
+            {"id": "I2", "descripcion": "i2", "si": {"b": True}, "entonces": "x", "confianza": 0.5},
+            hechos="ab",
+        )
+        self.assertAlmostEqual(encadenar_hacia_adelante(base, {"a": True, "b": True}).principal.certeza, 0.6)
+
+    def test_el_resultado_no_depende_del_orden_de_las_reglas(self):
+        azar = random.Random(11)
+        dominios = {h: (e.valores_opcion if e.tipo == OPCION else (60.0, 75.0, 95.0) if e.tipo == NUMERO
+                        else (True, False)) for h, e in BASE.hechos.items()}
+        for _ in range(30):
+            reglas = list(BASE.reglas)
+            azar.shuffle(reglas)
+            mezclada = BaseDeConocimiento(BASE.nombre, BASE.hechos, tuple(reglas))
+            for _ in range(20):
+                r = {h: azar.choice(d) for h, d in dominios.items()}
+                esperado = {dg.hecho: round(dg.certeza, 9)
+                            for dg in encadenar_hacia_adelante(BASE, r).diagnosticos}
+                obtenido = {dg.hecho: round(dg.certeza, 9)
+                            for dg in encadenar_hacia_adelante(mezclada, r).diagnosticos}
+                self.assertEqual(esperado, obtenido, r)
+
+    def test_la_consulta_pregunta_por_la_evidencia(self):
+        r = {"enciende": True, "conexion_red": False, "otras_apps_funcionan": True}
+        pregunta = pregunta_sobre(BASE, r, "otros_dispositivos_conectan")
+        self.assertEqual({regla.id for regla in pregunta.hipotesis}, {"R16", "E03"})
+
+    def test_validador_de_evidencia(self):
+        casos = {
+            "no lleva 'recomendacion'": {"id": "E1", "descripcion": "e", "si": {"a": True}, "entonces": "d",
+                                         "recomendacion": "x", "confianza": -0.5},
+            "solo puede apuntar a un diagnóstico": {"id": "E1", "descripcion": "e", "si": {"a": True},
+                                                    "entonces": "otra_cosa", "confianza": -0.5},
+            "distinto de 0": {"id": "E1", "descripcion": "e", "si": {"a": True}, "entonces": "d",
+                              "confianza": 0},
+            "entre -1 y 1": {"id": "E1", "descripcion": "e", "si": {"a": True}, "entonces": "d",
+                             "confianza": -1.5},
+        }
+        diagnostico = {"id": "R1", "descripcion": "d", "si": {"b": True}, "entonces": "d",
+                       "recomendacion": "r", "confianza": 0.8}
+        for mensaje, evidencia in casos.items():
+            with self.subTest(mensaje), self.assertRaises(ErrorDeConocimiento) as ctx:
+                base_de_prueba(diagnostico, evidencia, hechos="ab")
+            self.assertIn(mensaje, "\n".join(ctx.exception.errores))
+
+    def test_no_se_puede_debilitar_un_diagnostico_usado_como_condicion(self):
+        with self.assertRaises(ErrorDeConocimiento) as ctx:
+            base_de_prueba(
+                {"id": "R1", "descripcion": "d", "si": {"a": True}, "entonces": "d",
+                 "recomendacion": "r", "confianza": 0.8},
+                {"id": "R2", "descripcion": "e", "si": {"d": True, "b": True}, "entonces": "f",
+                 "recomendacion": "r2", "confianza": 0.8},
+                {"id": "E1", "descripcion": "c", "si": {"c": True}, "entonces": "d", "confianza": -0.5},
+            )
+        self.assertIn("se usa como condición", "\n".join(ctx.exception.errores))
+
+
 class TestEncadenamientoHaciaAtras(unittest.TestCase):
     def test_indica_lo_que_falta(self):
         [analisis] = encadenar_hacia_atras(BASE, "R07", {"enciende": True, "se_apaga_solo": True})
@@ -349,7 +484,7 @@ class TestEncadenamientoHaciaAtras(unittest.TestCase):
 
     def test_meta_por_hecho_devuelve_todas_sus_reglas(self):
         analisis = encadenar_hacia_atras(BASE, "sobrecalentamiento", {})
-        self.assertEqual([a.regla.id for a in analisis], ["R07", "R14"])
+        self.assertEqual([a.regla.id for a in analisis], ["R07", "R14", "E01", "E02"])
 
     def test_meta_inexistente(self):
         with self.assertRaises(LookupError):

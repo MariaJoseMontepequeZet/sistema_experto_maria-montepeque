@@ -16,6 +16,7 @@ from .motor import (
     CONTRADICHA,
     CUMPLIDA,
     AnalisisRegla,
+    Diagnostico,
     Inferencia,
     Pregunta,
     encadenar_hacia_adelante,
@@ -97,7 +98,11 @@ def explicar_pregunta(pregunta: Pregunta) -> None:
         return
     print("     Pregunto esto porque ayuda a confirmar o descartar:")
     for regla in pregunta.hipotesis:
-        print(f"       • [{regla.id}] {regla.descripcion} ({regla.confianza * 100:.0f}%)")
+        if regla.es_diagnostico:
+            detalle = f"{regla.confianza * 100:.0f}%"
+        else:
+            detalle = f"evidencia {'en contra' if regla.en_contra else 'a favor'} de {regla.conclusion}"
+        print(f"       • [{regla.id}] {regla.descripcion} ({detalle})")
 
 
 def recolectar_respuestas(base: BaseDeConocimiento, completo: bool) -> dict[str, Valor]:
@@ -125,6 +130,28 @@ def formatear_respuestas(base: BaseDeConocimiento, respuestas: dict[str, Valor])
     return ", ".join(f"{h}={base.formatear(h, v)}" for h, v in respuestas.items())
 
 
+def mostrar_evidencia(dg: Diagnostico, sangria: str) -> None:
+    """Detalle de la certeza cuando varias reglas aportaron evidencia a favor o en contra."""
+    if len(dg.disparos) < 2:
+        return
+    print(f"{sangria}Evidencia considerada:")
+    for d in dg.disparos:
+        sentido = "a favor" if d.certeza > 0 else "en contra"
+        print(f"{sangria}  {'+' if d.certeza > 0 else '−'} [{d.regla.id}] {d.regla.descripcion} "
+              f"({sentido}, {abs(d.certeza) * 100:.0f}%)")
+
+
+def mostrar_descartados(inferencia: Inferencia) -> None:
+    if not inferencia.descartados:
+        return
+    print("  DESCARTADOS POR EVIDENCIA EN CONTRA")
+    print(LINEA_FINA)
+    for dg in inferencia.descartados:
+        motivos = "; ".join(d.regla.descripcion for d in dg.en_contra)
+        print(f"  ✗ {dg.descripcion}: {motivos} (certeza neta {dg.certeza * 100:.0f}%)")
+    print()
+
+
 def mostrar_inferencia(base: BaseDeConocimiento, inferencia: Inferencia, mostrar_todos: bool,
                        no_sabe: list[str] | None = None) -> None:
     print()
@@ -140,7 +167,8 @@ def mostrar_inferencia(base: BaseDeConocimiento, inferencia: Inferencia, mostrar
 
     diagnosticos = inferencia.diagnosticos
     if not diagnosticos:
-        print("  ⚠ No se encontraron reglas aplicables.")
+        mostrar_descartados(inferencia)
+        print("  ⚠ No se llegó a ningún diagnóstico con suficiente certeza.")
         print("  Considera revisar las respuestas o ampliar la base de conocimiento.")
         print(LINEA_GRUESA)
         return
@@ -154,6 +182,7 @@ def mostrar_inferencia(base: BaseDeConocimiento, inferencia: Inferencia, mostrar
                 print(f"      → {rec}")
             for adv in dg.advertencias:
                 print(f"      ⚠ {adv}")
+            mostrar_evidencia(dg, "      ")
             print()
     else:
         dg = diagnosticos[0]
@@ -165,7 +194,10 @@ def mostrar_inferencia(base: BaseDeConocimiento, inferencia: Inferencia, mostrar
         print(f"  Certeza:       {dg.certeza * 100:.0f}%")
         for adv in dg.advertencias:
             print(f"  ⚠ Precaución:  {adv}")
+        mostrar_evidencia(dg, "  ")
         print()
+
+    mostrar_descartados(inferencia)
 
     principal = diagnosticos[0]
     print("  TRAZABILIDAD DEL RAZONAMIENTO (diagnóstico principal)")
