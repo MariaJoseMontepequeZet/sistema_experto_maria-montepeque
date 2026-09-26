@@ -53,6 +53,21 @@ class TestApp(unittest.TestCase):
         self.assertNotIn("temperatura", self.pregunta() if self.app.subheader else "")
         self.assertEqual(self.app.session_state["respuestas"]["temperatura_cpu"], 95.0)
 
+    def test_muestra_evidencia_y_descartados(self):
+        from sistema_experto import cargar
+        base = cargar()
+        respuestas = {h: False for h, e in base.hechos.items() if e.tipo == "si_no"}
+        respuestas.update(enciende=True, luces_led=True, hay_video=True, perifericos_responden=True,
+                          tipo_equipo="escritorio", patron_pitidos="uno_corto", se_apaga_solo=True,
+                          calor_excesivo=True, temperatura_cpu=60.0, otras_apps_funcionan=True,
+                          otros_dispositivos_conectan=False)
+        self.app.session_state["respuestas"] = respuestas
+        self.app.run()
+        self.assertFalse(self.app.exception)
+        self.assertIn("router", self.app.success[0].value)
+        self.assertIn("🧮 ¿Por qué 75% de certeza?", [e.label for e in self.app.expander])
+        self.assertIn("Descartados por evidencia en contra", [s.value for s in self.app.subheader])
+
     def test_deshacer_vuelve_a_la_pregunta_anterior(self):
         self.clic("No")
         self.assertIn("tipo de equipo", self.pregunta())
