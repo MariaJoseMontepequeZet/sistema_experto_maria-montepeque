@@ -21,6 +21,7 @@ proyecto con arquitectura modular, pruebas automatizadas, integración continua 
 - **Tres tipos de pregunta:** sí/no, opción múltiple (por ejemplo, el patrón de pitidos) y numéricas con unidad (por ejemplo, la temperatura del procesador).
 - **Explica su razonamiento:** muestra la cadena de reglas que llevó al diagnóstico, en texto y como diagrama.
 - **Encadenamiento hacia adelante y hacia atrás:** de los síntomas al diagnóstico, y de una hipótesis a los síntomas que la confirmarían.
+- **Precisión medida:** 31 casos de referencia evaluados en cada cambio; el CI falla si la precisión baja del 90 %.
 - **Pruebas de verificación:** después de los síntomas, el sistema propone pruebas concretas (otro monitor, otra fuente, estado SMART del disco, un solo módulo de RAM…) y usa el resultado como evidencia fuerte: los diagnósticos confirmados superan el 95 % y los descartados se explican.
 - **Evidencia a favor y en contra:** cada diagnóstico tiene una certeza neta (factores de certeza de MYCIN, de −1 a +1). Un síntoma puede reforzarlo o debilitarlo, y los diagnósticos que la evidencia en contra deja bajo el umbral se muestran como descartados, con el motivo.
 - **Respuestas "no sé"** y la pregunta **"¿por qué me preguntas esto?"**.
@@ -80,6 +81,27 @@ solo lo relevante nunca hace perder un diagnóstico.
 
 📖 Más detalle en [Arquitectura](docs/arquitectura.md).
 
+## 📊 Precisión medida
+
+El sistema se evalúa en cada cambio con **31 casos de referencia**, resueltos con la consulta dinámica
+completa, como lo haría un usuario:
+
+| Métrica | Resultado |
+|---|---|
+| Diagnóstico principal correcto | **100 %** (28 de 28 casos cubiertos) |
+| Falsos positivos (falla inventada en un equipo sano) | **0** |
+| Preguntas promedio por consulta | 10.3 |
+| Calibración | los diagnósticos con certeza 90–100 % aciertan el 100 % |
+| Fuera de cobertura | 3 fallas que el conocimiento aún no incluye (placa madre o botón, audio, pantalla de laptop) |
+
+```bash
+python main.py --validar
+```
+
+El CI falla si la precisión baja del 90 %. Los casos se construyeron a partir de síntomas típicos
+documentados: miden coherencia y detectan regresiones, pero **no reemplazan una validación con casos reales**.
+Detalles, métricas y cómo agregar casos en [Validación](docs/validacion.md).
+
 ## 📁 Estructura
 
 ```
@@ -89,11 +111,13 @@ sistema_experto/
   conocimiento.py    carga y validación del JSON
   motor.py           encadenamiento hacia adelante / atrás, consulta dinámica
   visualizacion.py   diagramas Graphviz del razonamiento
+  validacion.py      evaluación con los casos de referencia
   cli.py             interfaz de consola
 app.py               interfaz web (Streamlit)
 main.py              punto de entrada de la consola
+casos/               casos de referencia con su diagnóstico correcto
 tests/               pruebas unitarias, exhaustivas y de la interfaz web
-docs/                arquitectura, guía de conocimiento y actividad original
+docs/                arquitectura, conocimiento, validación y actividad original
 ```
 
 ## 🛠️ Desarrollo
@@ -108,9 +132,11 @@ La prueba exhaustiva del árbol de decisión tarda más: se ejecuta siempre en e
 El CI de GitHub Actions ejecuta en cada Pull Request:
 - `ruff` para revisar el estilo del código;
 - las pruebas del motor en Python 3.10, 3.12 y 3.14, sin dependencias;
+- la medición de precisión con los casos de referencia;
 - las pruebas de la interfaz web, con Streamlit.
 
-- ¿Quieres agregar o corregir un diagnóstico? Lee la [guía para escribir reglas](docs/conocimiento.md).
+- ¿Quieres agregar o corregir un diagnóstico? Lee la [guía para escribir reglas](docs/conocimiento.md) y agrega
+  un caso de referencia que lo cubra ([Validación](docs/validacion.md)).
 - Flujo de ramas y convención de commits: [CONTRIBUTING.md](CONTRIBUTING.md).
 - Historial de versiones: [CHANGELOG.md](CHANGELOG.md).
 

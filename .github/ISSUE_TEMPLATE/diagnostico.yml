@@ -5,7 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Gracias por ayudar a mejorar la base de conocimiento.
+        Gracias por ayudar a mejorar la base de conocimiento. Cada diagnóstico equivocado reportado aquí
+        se convierte en un caso de referencia, para medir la corrección y evitar que vuelva a pasar.
         Revisa la [guía para escribir reglas](https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/blob/main/docs/conocimiento.md) si quieres proponer la regla completa.
   - type: dropdown
     id: tipo
