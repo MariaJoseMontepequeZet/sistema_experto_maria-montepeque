@@ -32,7 +32,8 @@ def respuestas(**valores) -> dict:
     """Consulta de referencia: síntomas en 'no', escritorio, sin pitidos, y las pruebas de
     verificación sin hacer (desconocidas), salvo lo indicado."""
     r = {hecho: (None if h.prueba else False) for hecho, h in BASE.hechos.items() if h.tipo == SI_NO}
-    r.update(tipo_equipo="escritorio", patron_pitidos="ninguno", temperatura_cpu=None)
+    r.update(tipo_equipo="escritorio", patron_pitidos="ninguno", temperatura_cpu=None,
+             interruptor_fuente_encendido=True, hay_sonido=True)
     r.update(valores)
     return r
 
@@ -50,9 +51,9 @@ def diagnosticos(r: dict) -> dict[str, float]:
 
 class TestBaseDeConocimiento(unittest.TestCase):
     def test_la_base_incluida_es_valida(self):
-        self.assertEqual(len(BASE.reglas), 37)
-        self.assertEqual(len(BASE.hechos), 23)
-        self.assertEqual(sum(h.prueba for h in BASE.hechos.values()), 7)
+        self.assertEqual(len(BASE.reglas), 55)
+        self.assertEqual(len(BASE.hechos), 29)
+        self.assertEqual(sum(h.prueba for h in BASE.hechos.values()), 10)
         self.assertEqual({h.tipo for h in BASE.hechos.values()}, {SI_NO, OPCION, NUMERO})
 
     def _datos(self):
@@ -474,8 +475,9 @@ class TestPruebasDeVerificacion(unittest.TestCase):
 
     def test_una_prueba_descarta_aunque_el_sintoma_sea_fuerte(self):
         inferencia = encadenar_hacia_adelante(BASE, respuestas(prueba_otra_fuente=False))
-        self.assertEqual(inferencia.diagnosticos, [])
         self.assertEqual([dg.hecho for dg in inferencia.descartados], ["falla_fuente"])
+        # descartada la fuente, la causa que queda es la placa madre
+        self.assertEqual([dg.hecho for dg in inferencia.diagnosticos], ["falla_placa_madre"])
 
     def test_una_misma_prueba_apoya_una_causa_y_descarta_otra(self):
         # Pitido largo y cortos sugiere la tarjeta de video; si otro monitor sí da imagen, no lo es

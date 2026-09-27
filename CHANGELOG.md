@@ -4,6 +4,23 @@ Todos los cambios relevantes del proyecto se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.8.0] - 2026-09-27
+
+### Agregado
+- Equipo de escritorio que no enciende: interruptor de la fuente apagado, cable/enchufe/regleta, botón de
+  encendido y placa madre, con dos pruebas nuevas (otro enchufe y puentear los pines del botón).
+- Sin sonido: salida de audio mal elegida o silenciada, driver de audio y parlantes o audífonos dañados,
+  con la prueba de otros parlantes.
+- Pantalla interna de la laptop (con imagen en un monitor externo).
+- 11 casos de referencia nuevos; los 3 casos que estaban fuera de cobertura ahora se diagnostican, y se
+  agregaron 2 fallas conocidas que todavía no se cubren.
+
+### Cambiado
+- Las reglas de "monitor o cable" aplican solo a equipos de escritorio (en una laptop es la pantalla interna).
+- La prueba que recorría el árbol de decisión completo se reemplazó por una prueba basada en propiedades con
+  muestreo aleatorio reproducible: con 29 preguntas hay más de 4000 millones de combinaciones y el recorrido
+  completo dejó de ser viable. `PRUEBAS_EXHAUSTIVAS` pasa a llamarse `PRUEBAS_EXTENSAS`.
+
 ## [1.7.1] - 2026-09-27
 
 ### Corregido
@@ -139,6 +156,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Cambiado
 - Arquitectura separada en conocimiento, motor e interfaz; hechos booleanos con negación.
 
+[1.8.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.5.0...v1.6.0

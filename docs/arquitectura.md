@@ -73,7 +73,9 @@ Es la única parte que usa `input()` y `print()`. En cada paso le pide al motor 
    Un diagnóstico cuenta como "todavía posible" si alguna de sus reglas ya se cumple o puede cumplirse con preguntas sin responder; las respondidas con "no sé" no cuentan, así no se pregunta evidencia de algo que ya no se puede confirmar.
 4. Si no queda ninguna, termina la consulta.
 
-Una prueba recorre todo el árbol de decisión (más de 10 000 caminos de consulta, con todas las opciones y los valores límite de cada umbral numérico). En cada final comprueba que las respuestas no preguntadas no habrían cambiado el resultado: preguntar menos nunca hace perder un diagnóstico.
+Una prueba basada en propiedades verifica que preguntar menos nunca hace perder un diagnóstico: genera miles de equipos al azar (con semilla fija, para que sea reproducible), con todas las opciones y un valor por cada región de los umbrales numéricos, y comprueba que la consulta dinámica llega a los mismos diagnósticos que preguntar todo.
+
+Hasta la versión 1.7 esa prueba recorría el árbol de decisión completo. Con 29 preguntas las combinaciones posibles superan los 4000 millones y crecen con cada pregunta nueva: recorrerlas todas dejó de ser viable (explosión combinatoria). El muestreo mantiene el tiempo constante al ampliar el conocimiento, y los casos de referencia cubren los caminos específicos importantes.
 
 Para que el motor sea rápido, antes de encadenar descarta una sola vez las reglas que ya contradicen alguna respuesta: como las respuestas no cambian durante la inferencia, esas reglas nunca podrían dispararse.
 
