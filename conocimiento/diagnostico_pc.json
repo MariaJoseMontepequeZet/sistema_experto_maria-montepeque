@@ -149,6 +149,14 @@
       "confianza": 0.80
     },
     {
+      "id": "R17",
+      "descripcion": "Problema de monitor o cable de video",
+      "si": { "arranque_sin_video": true, "prueba_otro_monitor": true },
+      "entonces": "falla_monitor",
+      "recomendacion": "Reemplazar el monitor o el cable de video que no funcionaba",
+      "confianza": 0.90
+    },
+    {
       "id": "R04",
       "descripcion": "Problemas de almacenamiento",
       "si": { "rendimiento_degradado": true, "disco_al_100": true },
