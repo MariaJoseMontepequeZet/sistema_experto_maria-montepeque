@@ -11,6 +11,10 @@
       }
     },
     "luces_led":                 { "pregunta": "¿Se enciende alguna luz LED (placa madre, chasis, fuente o cargador)?" },
+    "interruptor_fuente_encendido": {
+      "pregunta": "¿El interruptor trasero de la fuente de poder (junto al cable) está en la posición de encendido (I)?",
+      "ayuda": "Algunas fuentes no tienen interruptor: en ese caso responde 'sí'."
+    },
     "hay_video":                 { "pregunta": "¿La pantalla muestra imagen al encender?" },
     "patron_pitidos": {
       "pregunta": "¿Qué pitidos (beeps) se escuchan al encender?",
@@ -44,6 +48,11 @@
     "otros_dispositivos_conectan": { "pregunta": "¿Otros dispositivos (celular, otra computadora) se conectan a internet en la misma red?" },
     "otras_apps_funcionan":      { "pregunta": "¿Las demás aplicaciones funcionan con normalidad?" },
     "perifericos_responden":     { "pregunta": "¿El teclado y el mouse USB responden al encender?" },
+    "hay_sonido":                { "pregunta": "¿Se escucha sonido en el equipo (videos, música o avisos del sistema)?" },
+    "salida_audio_correcta": {
+      "pregunta": "En la configuración de sonido, ¿está elegido el dispositivo de salida correcto y el volumen sin silenciar?",
+      "ayuda": "Haz clic en el icono de volumen de la barra de tareas para ver el dispositivo de salida y el volumen."
+    },
 
     "prueba_otra_fuente": {
       "pregunta": "Prueba con otra fuente de poder compatible (o con un probador de fuentes). ¿El problema desaparece?",
@@ -53,6 +62,15 @@
     "prueba_otro_cargador": {
       "pregunta": "Prueba con otro cargador compatible (mismo voltaje). ¿La laptop enciende o empieza a cargar?",
       "prueba": true
+    },
+    "prueba_otro_enchufe": {
+      "pregunta": "Conecta el equipo directo a otro enchufe (sin regleta) y, si puedes, con otro cable de corriente. ¿Enciende?",
+      "prueba": true
+    },
+    "prueba_puente_boton": {
+      "pregunta": "Desconecta el cable del botón de encendido de la placa madre (conector POWER SW) y une sus dos pines por un instante con un destornillador. ¿Enciende?",
+      "prueba": true,
+      "ayuda": "Hazlo solo si tienes experiencia: toca únicamente los dos pines POWER SW que indica el manual de la placa. Si no, responde 'No puedo hacerla'."
     },
     "prueba_otro_monitor": {
       "pregunta": "Conecta otro monitor o usa otro cable de video. ¿Ahora aparece imagen?",
@@ -77,6 +95,10 @@
     },
     "prueba_antivirus": {
       "pregunta": "Haz un análisis completo con Windows Defender o Malwarebytes. ¿Encontró amenazas?",
+      "prueba": true
+    },
+    "prueba_otros_parlantes": {
+      "pregunta": "Conecta otros parlantes o audífonos que funcionen en otro equipo. ¿Se escucha sonido?",
       "prueba": true
     }
   },
@@ -143,7 +165,7 @@
     {
       "id": "R13",
       "descripcion": "Problema de monitor o cable de video",
-      "si": { "arranque_sin_video": true, "patron_pitidos": "uno_corto" },
+      "si": { "tipo_equipo": "escritorio", "arranque_sin_video": true, "patron_pitidos": "uno_corto" },
       "entonces": "falla_monitor",
       "recomendacion": "Revisar el cable de video, la entrada seleccionada en el monitor y probar con otro monitor o cable",
       "confianza": 0.80
@@ -151,7 +173,7 @@
     {
       "id": "R17",
       "descripcion": "Problema de monitor o cable de video",
-      "si": { "arranque_sin_video": true, "prueba_otro_monitor": true },
+      "si": { "tipo_equipo": "escritorio", "arranque_sin_video": true, "prueba_otro_monitor": true },
       "entonces": "falla_monitor",
       "recomendacion": "Reemplazar el monitor o el cable de video que no funcionaba",
       "confianza": 0.90
@@ -322,6 +344,119 @@
     {
       "id": "E18", "descripcion": "El análisis completo no encontró amenazas",
       "si": { "prueba_antivirus": false }, "entonces": "malware", "confianza": -0.5
+    },
+    {
+      "id": "R19",
+      "descripcion": "Interruptor de la fuente apagado",
+      "si": { "enciende": false, "tipo_equipo": "escritorio", "interruptor_fuente_encendido": false },
+      "entonces": "interruptor_fuente_apagado",
+      "recomendacion": "Poner el interruptor trasero de la fuente en la posición de encendido (I)",
+      "confianza": 0.95
+    },
+    {
+      "id": "R18",
+      "descripcion": "Cable de corriente, enchufe o regleta",
+      "si": { "enciende": false, "tipo_equipo": "escritorio", "luces_led": false, "prueba_otro_enchufe": true },
+      "entonces": "falla_alimentacion_externa",
+      "recomendacion": "Usar otro cable de corriente o enchufe y dejar de usar la regleta o el cable que fallaba",
+      "advertencia": "No uses cables ni regletas con el aislante dañado o con olor a quemado.",
+      "confianza": 0.90
+    },
+    {
+      "id": "R20",
+      "descripcion": "Botón de encendido o su conexión",
+      "si": { "enciende": false, "tipo_equipo": "escritorio", "luces_led": true },
+      "entonces": "falla_boton_encendido",
+      "recomendacion": "Revisar que el cable del botón de encendido esté bien conectado a la placa madre (conector POWER SW) o reemplazar el botón",
+      "advertencia": "Apaga y desconecta el equipo antes de revisar los cables del panel frontal.",
+      "confianza": 0.60
+    },
+    {
+      "id": "R21",
+      "descripcion": "Placa madre dañada",
+      "si": { "enciende": false, "tipo_equipo": "escritorio", "prueba_otra_fuente": false },
+      "entonces": "falla_placa_madre",
+      "recomendacion": "Llevar el equipo a un técnico para revisar la placa madre (capacitores inflados o cortocircuitos)",
+      "advertencia": "No intentes reparar la placa madre sin experiencia: un cortocircuito puede dañar otros componentes.",
+      "confianza": 0.70
+    },
+    {
+      "id": "R22",
+      "descripcion": "Placa madre dañada",
+      "si": { "enciende": false, "tipo_equipo": "escritorio", "luces_led": true, "prueba_puente_boton": false },
+      "entonces": "falla_placa_madre",
+      "recomendacion": "Llevar el equipo a un técnico para revisar la placa madre (capacitores inflados o cortocircuitos)",
+      "advertencia": "No intentes reparar la placa madre sin experiencia: un cortocircuito puede dañar otros componentes.",
+      "confianza": 0.80
+    },
+    {
+      "id": "E19", "descripcion": "El interruptor de la fuente estaba apagado",
+      "si": { "interruptor_fuente_encendido": false }, "entonces": "falla_fuente", "confianza": -0.95
+    },
+    {
+      "id": "E20", "descripcion": "Con otro enchufe o cable el equipo enciende",
+      "si": { "prueba_otro_enchufe": true }, "entonces": "falla_fuente", "confianza": -0.95
+    },
+    {
+      "id": "E21", "descripcion": "Con otro enchufe o cable el equipo enciende",
+      "si": { "prueba_otro_enchufe": true }, "entonces": "falla_placa_madre", "confianza": -0.95
+    },
+    {
+      "id": "E22", "descripcion": "Al puentear los pines del botón el equipo enciende",
+      "si": { "prueba_puente_boton": true }, "entonces": "falla_boton_encendido", "confianza": 0.9
+    },
+    {
+      "id": "E23", "descripcion": "Al puentear los pines del botón tampoco enciende",
+      "si": { "prueba_puente_boton": false }, "entonces": "falla_boton_encendido", "confianza": -0.9
+    },
+    {
+      "id": "E24", "descripcion": "Al puentear los pines del botón el equipo enciende",
+      "si": { "prueba_puente_boton": true }, "entonces": "falla_placa_madre", "confianza": -0.95
+    },
+    {
+      "id": "R23",
+      "descripcion": "Salida de audio mal elegida o silenciada",
+      "si": { "enciende": true, "hay_video": true, "hay_sonido": false, "salida_audio_correcta": false },
+      "entonces": "audio_mal_configurado",
+      "recomendacion": "Elegir el dispositivo de salida correcto y quitar el silencio desde el icono de volumen",
+      "confianza": 0.90
+    },
+    {
+      "id": "R24",
+      "descripcion": "Driver o controlador de audio",
+      "si": { "enciende": true, "hay_video": true, "hay_sonido": false, "salida_audio_correcta": true },
+      "entonces": "falla_audio",
+      "recomendacion": "Reinstalar el driver de audio desde el sitio del fabricante del equipo o de la placa madre",
+      "confianza": 0.75
+    },
+    {
+      "id": "R25",
+      "descripcion": "Parlantes o audífonos dañados",
+      "si": { "enciende": true, "hay_sonido": false, "prueba_otros_parlantes": true },
+      "entonces": "falla_parlantes",
+      "recomendacion": "Reemplazar los parlantes o audífonos, o revisar su cable y su conector",
+      "confianza": 0.90
+    },
+    {
+      "id": "E25", "descripcion": "Con otros parlantes o audífonos sí se escucha",
+      "si": { "prueba_otros_parlantes": true }, "entonces": "falla_audio", "confianza": -0.9
+    },
+    {
+      "id": "E26", "descripcion": "Con otros parlantes o audífonos tampoco se escucha",
+      "si": { "prueba_otros_parlantes": false }, "entonces": "falla_audio", "confianza": 0.5
+    },
+    {
+      "id": "R26",
+      "descripcion": "Pantalla interna de la laptop, cable flex o retroiluminación",
+      "si": { "tipo_equipo": "laptop", "arranque_sin_video": true, "prueba_otro_monitor": true },
+      "entonces": "falla_pantalla_laptop",
+      "recomendacion": "Revisar el cable flex de la pantalla y la retroiluminación; si el problema continúa, reemplazar el panel",
+      "advertencia": "Desconecta el cargador y la batería antes de abrir la laptop: el panel es frágil y se rompe con facilidad.",
+      "confianza": 0.90
+    },
+    {
+      "id": "E27", "descripcion": "Con un monitor externo tampoco hay imagen",
+      "si": { "prueba_otro_monitor": false }, "entonces": "falla_pantalla_laptop", "confianza": -0.9
     }
   ]
 }
