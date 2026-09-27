@@ -92,9 +92,16 @@ def interpretar_respuesta(entrada: Hecho, texto: str) -> Valor:
     return RESPUESTAS_SINTOMA.get(texto) if texto in ("s", "n") else None
 
 
+def describir_rivales(rivales: tuple[Diagnostico, ...]) -> str:
+    return " y ".join(f"{dg.descripcion} ({porcentaje(dg.certeza)})" for dg in rivales)
+
+
 def explicar_pregunta(pregunta: Pregunta) -> None:
     if pregunta.entrada and pregunta.entrada.ayuda:
         print(f"     💡 {pregunta.entrada.ayuda}")
+    if pregunta.rivales:
+        print(f"     ⚖️ Diagnóstico diferencial: {describir_rivales(pregunta.rivales)} están cerca;"
+              " esta respuesta ayuda a distinguirlos.")
     if not pregunta.hipotesis:
         print("     Ninguna hipótesis abierta depende de esta respuesta;"
               " se pregunta porque estás en modo --completo.")

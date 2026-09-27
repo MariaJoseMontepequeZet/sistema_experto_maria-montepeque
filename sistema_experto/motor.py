@@ -8,14 +8,30 @@ interfaz (cli.py u otra) decide cómo mostrar.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from functools import cached_property
 
-from .modelo import UMBRAL_CERTEZA, BaseDeConocimiento, BaseDeHechos, Condicion, Hecho, Regla, Valor
+from .modelo import (
+    NUMERO,
+    OPCION,
+    UMBRAL_CERTEZA,
+    BaseDeConocimiento,
+    BaseDeHechos,
+    Condicion,
+    Hecho,
+    Regla,
+    Valor,
+    combinar_certezas,
+)
 
 # hecho de entrada -> True/False (sí/no), una opción, un número, o None (no sé)
 Respuestas = Mapping[str, Valor]
+
+# Los diagnósticos a menos de esta distancia del principal compiten con él: la consulta
+# prioriza la pregunta que mejor los separa (diagnóstico diferencial).
+MARGEN_DIFERENCIAL = 0.2
 
 # ──────────────────────────────────────────────────────────────
 # Encadenamiento hacia adelante
@@ -261,41 +277,17 @@ class Pregunta:
     texto: str
     hipotesis: tuple[Regla, ...]   # diagnósticos que esta respuesta ayuda a confirmar o descartar
     entrada: Hecho | None = None   # tipo de respuesta, opciones, unidad y ayuda
+    rivales: tuple[Diagnostico, ...] = ()   # par de diagnósticos cercanos que esta respuesta separa
 
 
 def hipotesis_abiertas(base: BaseDeConocimiento, respuestas: Respuestas) -> list[AnalisisRegla]:
     """
     Diagnósticos que todavía pueden activarse y para los que queda alguna
-    pregunta sin hacer. Los descartados, los ya confirmados y los que solo
-    dependen de respuestas "no sé" quedan fuera.
+    pregunta sin hacer. Los descartados, los ya confirmados, los que solo
+    dependen de respuestas "no sé" y los que ya no pueden superar el umbral
+    con la evidencia que falta quedan fuera.
     """
-    return _abiertas(base, respuestas, _Analizador(base, respuestas))
-
-
-def _abiertas(base: BaseDeConocimiento, respuestas: Respuestas,
-              analizar: _Analizador) -> list[AnalisisRegla]:
-    abiertas = []
-    for regla in base.reglas:
-        if not regla.es_diagnostico:
-            continue
-        analisis = analizar(regla)
-        if any(h not in respuestas for h in analisis.por_preguntar):
-            abiertas.append(analisis)
-    return abiertas
-
-
-class _Analizador:
-    """Analiza cada regla una sola vez por consulta (el análisis no cambia mientras
-    no cambien las respuestas)."""
-
-    def __init__(self, base: BaseDeConocimiento, respuestas: Respuestas):
-        self.base, self.respuestas = base, respuestas
-        self.cache: dict[str, AnalisisRegla] = {}
-
-    def __call__(self, regla: Regla) -> AnalisisRegla:
-        if regla.id not in self.cache:
-            self.cache[regla.id] = _analizar(self.base, regla, self.respuestas, frozenset())
-        return self.cache[regla.id]
+    return _Consulta(base, respuestas).abiertas
 
 
 def siguiente_pregunta(base: BaseDeConocimiento, respuestas: Respuestas) -> Pregunta | None:
@@ -307,55 +299,170 @@ def siguiente_pregunta(base: BaseDeConocimiento, respuestas: Respuestas) -> Preg
     Primero se agotan los síntomas; las pruebas de verificación (acciones que el
     usuario tiene que hacer) se proponen al final, solo para las hipótesis que
     siguen abiertas. Devuelve None cuando ya no queda nada útil por preguntar.
+
+    Diagnóstico diferencial: si hay diagnósticos cerca del principal, entre las
+    preguntas disponibles va primero la que más puede separar a dos de ellos.
     """
-    interesadas = _hipotesis_por_hecho(base, respuestas)
+    consulta = _Consulta(base, respuestas)
+    interesadas = consulta.interesadas
     sintomas = {h: rs for h, rs in interesadas.items() if not base.hechos[h].prueba}
     candidatas = sintomas or interesadas
     if not candidatas:
         return None
 
+    sin_separar = (0.0, ())
+    separacion = {h: consulta.separacion(h) for h in candidatas} if consulta.rivales else {}
     orden = list(base.preguntas)
     hecho = max(
         candidatas,
-        key=lambda h: (len(candidatas[h]),
+        key=lambda h: (separacion.get(h, sin_separar)[0],
+                       len(candidatas[h]),
                        max(abs(r.confianza) for r in candidatas[h]),
                        -orden.index(h)),
     )
-    return pregunta_sobre(base, respuestas, hecho, interesadas)
+    return _pregunta(base, hecho, interesadas, separacion.get(hecho, sin_separar)[1])
 
 
-def pregunta_sobre(base: BaseDeConocimiento, respuestas: Respuestas, hecho: str,
-                   interesadas: dict[str, list[Regla]] | None = None) -> Pregunta:
+def pregunta_sobre(base: BaseDeConocimiento, respuestas: Respuestas, hecho: str) -> Pregunta:
     """Arma la pregunta de un hecho con las hipótesis abiertas que dependen de él."""
-    if interesadas is None:
-        interesadas = _hipotesis_por_hecho(base, respuestas)
+    return _pregunta(base, hecho, _Consulta(base, respuestas).interesadas)
+
+
+def _pregunta(base: BaseDeConocimiento, hecho: str, interesadas: dict[str, list[Regla]],
+              rivales: tuple[Diagnostico, ...] = ()) -> Pregunta:
     hipotesis = sorted(interesadas.get(hecho, []), key=lambda r: r.confianza, reverse=True)
     entrada = base.hechos[hecho]
-    return Pregunta(hecho, entrada.pregunta, tuple(hipotesis), entrada)
+    return Pregunta(hecho, entrada.pregunta, tuple(hipotesis), entrada, rivales)
 
 
-def _hipotesis_por_hecho(base: BaseDeConocimiento,
-                         respuestas: Respuestas) -> dict[str, list[Regla]]:
-    interesadas: dict[str, list[Regla]] = {}
-    analizar = _Analizador(base, respuestas)
-    for analisis in _abiertas(base, respuestas, analizar):
-        for hecho in analisis.por_preguntar:
-            if hecho not in respuestas:
-                interesadas.setdefault(hecho, []).append(analisis.regla)
+class _Consulta:
+    """
+    Lo que se deduce de unas respuestas para elegir la siguiente pregunta: el análisis
+    de cada regla, la inferencia y qué diagnósticos todavía pueden establecerse. Cada
+    cálculo se hace una sola vez (no cambia mientras no cambien las respuestas).
+    """
 
-    # Evidencia a favor o en contra de los diagnósticos que todavía son posibles:
-    # puede cambiar su certeza, así que también vale la pena preguntarla.
-    for diagnostico in base.hechos_diagnostico:
-        # Un diagnóstico sigue siendo posible si alguna de sus reglas ya se cumple o todavía
-        # puede cumplirse con preguntas sin responder (las respondidas con "no sé" no cuentan).
-        posibles = [analizar(r) for r in base.reglas_que_concluyen(diagnostico) if r.es_diagnostico]
-        if not any(a.se_activa or any(h not in respuestas for h in a.por_preguntar) for a in posibles):
-            continue
-        for regla in base.evidencias_de(diagnostico):
-            for hecho in analizar(regla).por_preguntar:
-                if hecho not in respuestas:
-                    interesadas.setdefault(hecho, []).append(regla)
-    return interesadas
+    def __init__(self, base: BaseDeConocimiento, respuestas: Respuestas):
+        self.base, self.respuestas = base, respuestas
+        self._analisis: dict[str, AnalisisRegla] = {}
+
+    def analizar(self, regla: Regla) -> AnalisisRegla:
+        if regla.id not in self._analisis:
+            self._analisis[regla.id] = _analizar(self.base, regla, self.respuestas, frozenset())
+        return self._analisis[regla.id]
+
+    def puede_dispararse(self, regla: Regla) -> bool:
+        """¿Queda alguna pregunta sin hacer que podría activar la regla?
+        (las respondidas con "no sé" no cuentan)."""
+        return any(h not in self.respuestas for h in self.analizar(regla).por_preguntar)
+
+    @cached_property
+    def inferencia(self) -> Inferencia:
+        return encadenar_hacia_adelante(self.base, self.respuestas)
+
+    @cached_property
+    def alcanzables(self) -> set[str]:
+        """
+        Diagnósticos que todavía pueden superar el umbral. Su cota combina la evidencia ya
+        disparada con toda la evidencia a favor que las preguntas pendientes aún pueden
+        activar, a la confianza máxima de cada regla, y supone que no llega más evidencia
+        en contra. Como cada evidencia a favor solo puede subir la certeza (MYCIN), ninguna
+        combinación de respuestas supera esa cota: si no pasa el umbral, seguir preguntando
+        por ese diagnóstico ya no puede cambiar el resultado.
+        """
+        disparos: dict[str, list[Disparo]] = {}
+        for d in self.inferencia.disparos:
+            disparos.setdefault(d.regla.conclusion, []).append(d)
+
+        alcanzables = set()
+        for diagnostico in self.base.hechos_diagnostico:
+            ya = disparos.get(diagnostico, [])
+            disparadas = {d.regla.id for d in ya}
+            pendientes = [r for r in self.base.reglas_que_concluyen(diagnostico)
+                          if r.id not in disparadas and not r.en_contra and self.puede_dispararse(r)]
+            # sin una regla con recomendación, disparada o todavía posible, no hay diagnóstico
+            if not any(r.es_diagnostico for r in [d.regla for d in ya] + pendientes):
+                continue
+            # A favor se usa la confianza de la regla (la certeza de sus premisas aún puede
+            # crecer); en contra, lo ya disparado (su peso solo puede crecer, nunca bajar).
+            evidencias = [d.certeza if d.certeza < 0 else d.regla.confianza for d in ya]
+            evidencias += [r.confianza for r in pendientes]
+            cota = 0.0
+            for certeza in evidencias:
+                cota = combinar_certezas(cota, certeza)
+            if cota > UMBRAL_CERTEZA:
+                alcanzables.add(diagnostico)
+        return alcanzables
+
+    @cached_property
+    def abiertas(self) -> list[AnalisisRegla]:
+        return [self.analizar(r) for r in self.base.reglas
+                if r.es_diagnostico and r.conclusion in self.alcanzables and self.puede_dispararse(r)]
+
+    @cached_property
+    def interesadas(self) -> dict[str, list[Regla]]:
+        """Hecho sin responder -> reglas de los diagnósticos alcanzables que dependen de él."""
+        interesadas: dict[str, list[Regla]] = {}
+        for analisis in self.abiertas:
+            for hecho in analisis.por_preguntar:
+                if hecho not in self.respuestas:
+                    interesadas.setdefault(hecho, []).append(analisis.regla)
+
+        # Evidencia a favor o en contra de los diagnósticos que todavía pueden establecerse:
+        # puede cambiar su certeza, así que también vale la pena preguntarla.
+        for diagnostico in self.alcanzables:
+            for regla in self.base.evidencias_de(diagnostico):
+                for hecho in self.analizar(regla).por_preguntar:
+                    if hecho not in self.respuestas:
+                        interesadas.setdefault(hecho, []).append(regla)
+        return interesadas
+
+    @cached_property
+    def rivales(self) -> tuple[Diagnostico, ...]:
+        """Diagnósticos establecidos tan cerca del principal que conviene separarlos."""
+        diagnosticos = self.inferencia.diagnosticos
+        cercanos = [dg for dg in diagnosticos
+                    if diagnosticos[0].certeza - dg.certeza < MARGEN_DIFERENCIAL]
+        return tuple(cercanos) if len(cercanos) >= 2 else ()
+
+    def separacion(self, hecho: str) -> tuple[float, tuple[Diagnostico, ...]]:
+        """
+        Cuánto puede cambiar, según lo que se responda a `hecho`, la distancia entre dos
+        rivales (se simula cada respuesta posible), y qué par separa más. 0 = no distingue
+        a ningún par.
+        """
+        simuladas = []
+        for valor in _respuestas_posibles(self.base, hecho):
+            inferencia = encadenar_hacia_adelante(self.base, {**self.respuestas, hecho: valor})
+            simuladas.append({dg.hecho: dg.certeza for dg in inferencia._evaluados})
+
+        mejor: tuple[float, tuple[Diagnostico, ...]] = (0.0, ())
+        for a, b in itertools.combinations(self.rivales, 2):
+            distancias = [c.get(a.hecho, 0.0) - c.get(b.hecho, 0.0) for c in simuladas]
+            # redondeo: diferencias de coma flotante no deben decidir entre dos preguntas
+            separa = round(max(distancias) - min(distancias), 6) if distancias else 0.0
+            if separa > mejor[0]:
+                mejor = (separa, (a, b))
+        return mejor
+
+
+def _respuestas_posibles(base: BaseDeConocimiento, hecho: str) -> tuple[Valor, ...]:
+    """
+    Una respuesta por cada caso que distinguen las reglas. Para un hecho numérico, un valor
+    en cada región que delimitan los umbrales de sus condiciones.
+    """
+    entrada = base.hechos[hecho]
+    if entrada.tipo == OPCION:
+        return entrada.valores_opcion
+    if entrada.tipo != NUMERO:
+        return (True, False)
+    umbrales = sorted({n for r in base.reglas if hecho in r.condiciones
+                       for _, n in r.condiciones[hecho].esperado})
+    if not umbrales:
+        return ()
+    valores = {umbrales[0] - 1, umbrales[-1] + 1}
+    valores |= {(a + b) / 2 for a, b in itertools.pairwise(umbrales)}
+    return tuple(v for v in sorted(valores) if entrada.admite(v))
 
 
 def _analizar(base: BaseDeConocimiento, regla: Regla,
