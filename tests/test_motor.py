@@ -50,7 +50,7 @@ def diagnosticos(r: dict) -> dict[str, float]:
 
 class TestBaseDeConocimiento(unittest.TestCase):
     def test_la_base_incluida_es_valida(self):
-        self.assertEqual(len(BASE.reglas), 36)
+        self.assertEqual(len(BASE.reglas), 37)
         self.assertEqual(len(BASE.hechos), 23)
         self.assertEqual(sum(h.prueba for h in BASE.hechos.values()), 7)
         self.assertEqual({h.tipo for h in BASE.hechos.values()}, {SI_NO, OPCION, NUMERO})
@@ -455,7 +455,7 @@ class TestPruebasDeVerificacion(unittest.TestCase):
     def test_una_prueba_confirma(self):
         self.assertEqual(diagnosticos(respuestas(prueba_otra_fuente=True)), {"falla_fuente": 0.996})
         r = equipo_sano(hay_video=False, patron_pitidos="uno_corto", prueba_otro_monitor=True)
-        self.assertEqual(diagnosticos(r), {"falla_monitor": 0.98})
+        self.assertEqual(diagnosticos(r), {"falla_monitor": 0.998})   # R13 + R17 + E08
 
     def test_una_prueba_descarta_aunque_el_sintoma_sea_fuerte(self):
         inferencia = encadenar_hacia_adelante(BASE, respuestas(prueba_otra_fuente=False))

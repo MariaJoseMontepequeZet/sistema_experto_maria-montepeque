@@ -4,6 +4,21 @@ Todos los cambios relevantes del proyecto se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.7.0] - 2026-09-26
+
+### Agregado
+- Validación con casos de referencia (`casos/casos_referencia.json`): 31 casos resueltos con la consulta
+  dinámica completa, incluidos controles sin falla y casos fuera de cobertura.
+- Métricas: precisión, acierto entre los 3 primeros, falsos positivos, preguntas promedio y calibración.
+- `python main.py --validar` imprime el informe; el CI lo ejecuta y falla si la precisión baja del 90 %.
+- La web muestra la precisión medida en la barra lateral.
+- Regla R17: problema de monitor o cable según el resultado de la prueba con otro monitor.
+- Guía `docs/validacion.md`.
+
+### Corregido
+- Con pitidos de error de video pero imagen en otro monitor, el sistema terminaba sin diagnóstico
+  (lo encontró la validación: caso C12).
+
 ## [1.6.0] - 2026-09-26
 
 ### Agregado
@@ -117,6 +132,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Cambiado
 - Arquitectura separada en conocimiento, motor e interfaz; hechos booleanos con negación.
 
+[1.7.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.3.0...v1.4.0

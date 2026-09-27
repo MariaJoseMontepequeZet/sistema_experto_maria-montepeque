@@ -1,0 +1,186 @@
+{
+  "descripcion": "Casos de referencia para medir la precisión del sistema experto. Cada caso describe lo que el usuario observaría (y el resultado de las pruebas que haría) y el diagnóstico correcto. Lo que un caso no indica se responde 'no sé'. Casos construidos a partir de síntomas típicos documentados; no reemplazan una validación con casos reales resueltos por técnicos.",
+  "plantillas": {
+    "escritorio_sano": {
+      "enciende": true, "tipo_equipo": "escritorio", "luces_led": true, "hay_video": true,
+      "patron_pitidos": "uno_corto", "inicia_lento": false, "disco_al_100": false,
+      "ventilador_siempre_activo": false, "pantalla_azul_frecuente": false, "se_apaga_solo": false,
+      "calor_excesivo": false, "fecha_hora_incorrecta": false, "conexion_red": true,
+      "otros_dispositivos_conectan": true, "otras_apps_funcionan": true, "perifericos_responden": true
+    },
+    "laptop_sana": {
+      "enciende": true, "tipo_equipo": "laptop", "luces_led": true, "hay_video": true,
+      "patron_pitidos": "ninguno", "inicia_lento": false, "disco_al_100": false,
+      "ventilador_siempre_activo": false, "pantalla_azul_frecuente": false, "se_apaga_solo": false,
+      "calor_excesivo": false, "fecha_hora_incorrecta": false, "conexion_red": true,
+      "otros_dispositivos_conectan": true, "otras_apps_funcionan": true, "perifericos_responden": true
+    },
+    "escritorio_no_enciende": { "enciende": false, "tipo_equipo": "escritorio", "luces_led": false },
+    "laptop_no_enciende": { "enciende": false, "tipo_equipo": "laptop", "luces_led": false }
+  },
+  "casos": [
+    {
+      "id": "C01", "descripcion": "Escritorio sin ninguna señal de vida al presionar el botón",
+      "plantilla": "escritorio_no_enciende", "esperado": "falla_fuente",
+      "fuente": "Causa más frecuente de un equipo de escritorio sin luces ni ventiladores"
+    },
+    {
+      "id": "C02", "descripcion": "Escritorio sin señales de vida; con otra fuente enciende",
+      "plantilla": "escritorio_no_enciende", "respuestas": { "prueba_otra_fuente": true },
+      "esperado": "falla_fuente", "fuente": "Sustitución por una fuente conocida en buen estado"
+    },
+    {
+      "id": "C03", "descripcion": "Escritorio que se apaga solo con el procesador a 65 °C",
+      "plantilla": "escritorio_sano", "respuestas": { "se_apaga_solo": true, "temperatura_cpu": 65 },
+      "esperado": "falla_fuente", "fuente": "Apagados sin sobrecalentamiento: fuente inestable o insuficiente"
+    },
+    {
+      "id": "C04", "descripcion": "Laptop sin señales de vida",
+      "plantilla": "laptop_no_enciende", "esperado": "falla_alimentacion_laptop",
+      "fuente": "Causa más frecuente de una laptop que no enciende"
+    },
+    {
+      "id": "C05", "descripcion": "Laptop sin señales de vida; con otro cargador enciende",
+      "plantilla": "laptop_no_enciende", "respuestas": { "prueba_otro_cargador": true },
+      "esperado": "falla_alimentacion_laptop", "fuente": "Sustitución del cargador"
+    },
+    {
+      "id": "C06", "descripcion": "Arranca sin imagen con pitidos repetidos",
+      "plantilla": "escritorio_sano", "respuestas": { "hay_video": false, "patron_pitidos": "repetidos" },
+      "esperado": "falla_ram", "fuente": "Códigos de pitidos de BIOS: pitidos repetidos indican error de memoria"
+    },
+    {
+      "id": "C07", "descripcion": "Pitidos repetidos; con un solo módulo de RAM arranca",
+      "plantilla": "escritorio_sano",
+      "respuestas": { "hay_video": false, "patron_pitidos": "repetidos", "prueba_un_modulo_ram": true },
+      "esperado": "falla_ram", "fuente": "Prueba de módulos de RAM por separado"
+    },
+    {
+      "id": "C08", "descripcion": "Arranca sin imagen con un pitido largo y dos cortos",
+      "plantilla": "escritorio_sano", "respuestas": { "hay_video": false, "patron_pitidos": "largo_y_cortos" },
+      "esperado": "falla_video", "fuente": "Códigos de pitidos de BIOS: un largo y dos o tres cortos indican error de video"
+    },
+    {
+      "id": "C09", "descripcion": "Sin imagen y sin pitidos; con otro monitor tampoco hay imagen",
+      "plantilla": "escritorio_sano",
+      "respuestas": { "hay_video": false, "patron_pitidos": "ninguno", "prueba_otro_monitor": false },
+      "esperado": "falla_video", "fuente": "Descarte del monitor por sustitución"
+    },
+    {
+      "id": "C10", "descripcion": "Sin imagen con un pitido corto (arranque normal)",
+      "plantilla": "escritorio_sano", "respuestas": { "hay_video": false },
+      "esperado": "falla_monitor", "fuente": "Un pitido corto indica que el arranque fue correcto: el problema está en la salida de imagen"
+    },
+    {
+      "id": "C11", "descripcion": "Sin imagen con un pitido corto; con otro monitor aparece imagen",
+      "plantilla": "escritorio_sano", "respuestas": { "hay_video": false, "prueba_otro_monitor": true },
+      "esperado": "falla_monitor", "fuente": "Sustitución del monitor o cable"
+    },
+    {
+      "id": "C12", "descripcion": "Pitido largo y cortos, pero con otro monitor aparece imagen",
+      "plantilla": "escritorio_sano",
+      "respuestas": { "hay_video": false, "patron_pitidos": "largo_y_cortos", "prueba_otro_monitor": true },
+      "esperado": "falla_monitor", "fuente": "La prueba de sustitución prevalece sobre la interpretación de los pitidos"
+    },
+    {
+      "id": "C13", "descripcion": "Inicio muy lento con el disco al 100 %",
+      "plantilla": "escritorio_sano", "respuestas": { "inicia_lento": true, "disco_al_100": true },
+      "esperado": "falla_disco", "fuente": "Disco saturado como cuello de botella del arranque"
+    },
+    {
+      "id": "C14", "descripcion": "Inicio lento, disco al 100 % y SMART en estado 'Malo'",
+      "plantilla": "escritorio_sano",
+      "respuestas": { "inicia_lento": true, "disco_al_100": true, "prueba_smart": "malo" },
+      "esperado": "falla_disco", "fuente": "Autodiagnóstico SMART del disco"
+    },
+    {
+      "id": "C15", "descripcion": "Inicio lento con el ventilador siempre al máximo",
+      "plantilla": "escritorio_sano", "respuestas": { "inicia_lento": true, "ventilador_siempre_activo": true },
+      "esperado": "malware", "fuente": "Uso intensivo del procesador por procesos ocultos"
+    },
+    {
+      "id": "C16", "descripcion": "Inicio lento, ventilador al máximo y el antivirus encontró amenazas",
+      "plantilla": "escritorio_sano",
+      "respuestas": { "inicia_lento": true, "ventilador_siempre_activo": true, "prueba_antivirus": true },
+      "esperado": "malware", "fuente": "Confirmación con análisis antivirus completo"
+    },
+    {
+      "id": "C17", "descripcion": "Pantallas azules frecuentes",
+      "plantilla": "escritorio_sano", "respuestas": { "pantalla_azul_frecuente": true },
+      "esperado": "falla_driver_o_ram", "fuente": "Causas más frecuentes de errores de detención de Windows"
+    },
+    {
+      "id": "C18", "descripcion": "Se apaga solo y el chasis está muy caliente",
+      "plantilla": "escritorio_sano", "respuestas": { "se_apaga_solo": true, "calor_excesivo": true },
+      "esperado": "sobrecalentamiento", "fuente": "Apagado de protección térmica"
+    },
+    {
+      "id": "C19", "descripcion": "Se apaga solo y el procesador marca 95 °C",
+      "plantilla": "escritorio_sano", "respuestas": { "se_apaga_solo": true, "temperatura_cpu": 95 },
+      "esperado": "sobrecalentamiento", "fuente": "Temperatura por encima del límite térmico del procesador"
+    },
+    {
+      "id": "C20", "descripcion": "Laptop que se calienta y se apaga, con el ventilador siempre al máximo",
+      "plantilla": "laptop_sana",
+      "respuestas": { "se_apaga_solo": true, "calor_excesivo": true, "ventilador_siempre_activo": true },
+      "esperado": "sobrecalentamiento", "fuente": "Disipación insuficiente por polvo o pasta térmica seca"
+    },
+    {
+      "id": "C21", "descripcion": "La fecha y la hora se reinician al apagar",
+      "plantilla": "escritorio_sano", "respuestas": { "fecha_hora_incorrecta": true },
+      "esperado": "pila_bios_agotada", "fuente": "Síntoma clásico de la pila CMOS agotada"
+    },
+    {
+      "id": "C22", "descripcion": "Sin red, mientras otros dispositivos sí se conectan",
+      "plantilla": "escritorio_sano", "respuestas": { "conexion_red": false },
+      "esperado": "falla_red", "fuente": "Aislamiento del problema en el equipo"
+    },
+    {
+      "id": "C23", "descripcion": "Sin red y otros dispositivos tampoco se conectan",
+      "plantilla": "laptop_sana", "respuestas": { "conexion_red": false, "otros_dispositivos_conectan": false },
+      "esperado": "falla_router", "fuente": "Aislamiento del problema en la red"
+    },
+    {
+      "id": "C24", "descripcion": "Teclado y mouse USB no responden, arranque normal",
+      "plantilla": "escritorio_sano", "respuestas": { "perifericos_responden": false },
+      "esperado": "falla_usb", "fuente": "Controladores USB"
+    },
+    {
+      "id": "C25", "descripcion": "Inicio lento con disco al 100 % y ventilador al máximo (dos causas posibles)",
+      "plantilla": "escritorio_sano",
+      "respuestas": { "inicia_lento": true, "disco_al_100": true, "ventilador_siempre_activo": true },
+      "esperado": "falla_disco", "fuente": "El disco saturado explica mejor el arranque lento; el malware queda como alternativa"
+    },
+    {
+      "id": "C26", "descripcion": "Escritorio sin ningún problema",
+      "plantilla": "escritorio_sano", "esperado": null,
+      "fuente": "Caso de control: no debe inventar una falla"
+    },
+    {
+      "id": "C27", "descripcion": "Laptop sin ningún problema, procesador a 55 °C",
+      "plantilla": "laptop_sana", "respuestas": { "temperatura_cpu": 55 }, "esperado": null,
+      "fuente": "Caso de control: no debe inventar una falla"
+    },
+    {
+      "id": "C28", "descripcion": "Solo el ventilador trabaja siempre al máximo",
+      "plantilla": "escritorio_sano", "respuestas": { "ventilador_siempre_activo": true }, "esperado": null,
+      "fuente": "Caso de control: un indicio aislado no basta para diagnosticar"
+    },
+    {
+      "id": "C29", "descripcion": "Escritorio sin señales de vida; con otra fuente tampoco enciende",
+      "plantilla": "escritorio_no_enciende", "respuestas": { "prueba_otra_fuente": false },
+      "esperado": "falla_placa_o_boton",
+      "fuente": "Descartada la fuente: botón de encendido, cable o placa madre"
+    },
+    {
+      "id": "C30", "descripcion": "Todo funciona pero no hay sonido",
+      "plantilla": "escritorio_sano", "esperado": "falla_audio",
+      "fuente": "Drivers o dispositivo de audio"
+    },
+    {
+      "id": "C31", "descripcion": "Laptop sin imagen en su pantalla; con un monitor externo sí hay imagen",
+      "plantilla": "laptop_sana", "respuestas": { "hay_video": false, "prueba_otro_monitor": true },
+      "esperado": "falla_pantalla_laptop", "fuente": "Pantalla interna, cable flex o retroiluminación"
+    }
+  ]
+}
