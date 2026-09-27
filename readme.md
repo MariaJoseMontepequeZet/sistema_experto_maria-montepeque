@@ -21,7 +21,8 @@ proyecto con arquitectura modular, pruebas automatizadas, integración continua 
 - **Tres tipos de pregunta:** sí/no, opción múltiple (por ejemplo, el patrón de pitidos) y numéricas con unidad (por ejemplo, la temperatura del procesador).
 - **Explica su razonamiento:** muestra la cadena de reglas que llevó al diagnóstico, en texto y como diagrama.
 - **Encadenamiento hacia adelante y hacia atrás:** de los síntomas al diagnóstico, y de una hipótesis a los síntomas que la confirmarían.
-- **Precisión medida:** 31 casos de referencia evaluados en cada cambio; el CI falla si la precisión baja del 90 %.
+- **Precisión medida:** 42 casos de referencia evaluados en cada cambio; el CI falla si la precisión baja del 90 %.
+- **21 diagnósticos:** fuente, cargador, cable o enchufe, interruptor, botón de encendido, placa madre, RAM, video, monitor, pantalla de laptop, disco, malware, drivers, sobrecalentamiento, pila del BIOS, red, router, USB y audio (configuración, driver y parlantes).
 - **Pruebas de verificación:** después de los síntomas, el sistema propone pruebas concretas (otro monitor, otra fuente, estado SMART del disco, un solo módulo de RAM…) y usa el resultado como evidencia fuerte: los diagnósticos confirmados superan el 95 % y los descartados se explican.
 - **Evidencia a favor y en contra:** cada diagnóstico tiene una certeza neta (factores de certeza de MYCIN, de −1 a +1). Un síntoma puede reforzarlo o debilitarlo, y los diagnósticos que la evidencia en contra deja bajo el umbral se muestran como descartados, con el motivo.
 - **Respuestas "no sé"** y la pregunta **"¿por qué me preguntas esto?"**.
@@ -75,24 +76,24 @@ flowchart LR
 3. Con las respuestas, el **encadenamiento hacia adelante** dispara reglas hasta no poder deducir nada nuevo; las conclusiones intermedias alimentan a otras reglas.
 4. La interfaz muestra los diagnósticos ordenados por certeza, sus advertencias y la cadena de razonamiento.
 
-Una prueba recorre el **árbol de decisión completo** (más de 10 000 caminos posibles de consulta) y, en
-cada final, comprueba que las respuestas no preguntadas no habrían cambiado el resultado: preguntar
-solo lo relevante nunca hace perder un diagnóstico.
+Una prueba basada en propiedades genera miles de equipos al azar (con semilla fija, reproducible) y
+comprueba en cada uno que la consulta dinámica llega a los mismos diagnósticos que si se hubiera preguntado
+todo: preguntar solo lo relevante nunca hace perder un diagnóstico.
 
 📖 Más detalle en [Arquitectura](docs/arquitectura.md).
 
 ## 📊 Precisión medida
 
-El sistema se evalúa en cada cambio con **31 casos de referencia**, resueltos con la consulta dinámica
+El sistema se evalúa en cada cambio con **42 casos de referencia**, resueltos con la consulta dinámica
 completa, como lo haría un usuario:
 
 | Métrica | Resultado |
 |---|---|
-| Diagnóstico principal correcto | **100 %** (28 de 28 casos cubiertos) |
+| Diagnóstico principal correcto | **100 %** (40 de 40 casos cubiertos) |
 | Falsos positivos (falla inventada en un equipo sano) | **0** |
-| Preguntas promedio por consulta | 10.3 |
+| Preguntas promedio por consulta | 11.4 |
 | Calibración | los diagnósticos con certeza 90–100 % aciertan el 100 % |
-| Fuera de cobertura | 3 fallas que el conocimiento aún no incluye (placa madre o botón, audio, pantalla de laptop) |
+| Fuera de cobertura | 2 fallas que el conocimiento aún no incluye (batería de laptop desgastada, actualización fallida de Windows) |
 
 ```bash
 python main.py --validar
@@ -116,7 +117,7 @@ sistema_experto/
 app.py               interfaz web (Streamlit)
 main.py              punto de entrada de la consola
 casos/               casos de referencia con su diagnóstico correcto
-tests/               pruebas unitarias, exhaustivas y de la interfaz web
+tests/               pruebas unitarias, de propiedades y de la interfaz web
 docs/                arquitectura, conocimiento, validación y actividad original
 ```
 
@@ -126,8 +127,8 @@ docs/                arquitectura, conocimiento, validación y actividad origina
 python -m unittest -v
 ```
 
-La prueba exhaustiva del árbol de decisión tarda más: se ejecuta siempre en el CI y, en local, con
-`PRUEBAS_EXHAUSTIVAS=1 python -m unittest`.
+En local, la prueba de propiedades usa 300 equipos al azar; el CI usa 4000. Para correr la versión
+extensa en tu computadora: `PRUEBAS_EXTENSAS=1 python -m unittest`.
 
 El CI de GitHub Actions ejecuta en cada Pull Request:
 - `ruff` para revisar el estilo del código;
