@@ -25,6 +25,7 @@ from .motor import (
     pregunta_sobre,
     siguiente_pregunta,
 )
+from .validacion import PRECISION_MINIMA, RUTA_CASOS, cargar_casos, evaluar, informe
 
 AVISO = ("Aviso: este sistema orienta, no reemplaza a un técnico.\n"
          "  Apaga y desconecta el equipo antes de abrirlo.")
@@ -284,6 +285,25 @@ def consultar(base: BaseDeConocimiento, ruta_exportacion: Path, completo: bool =
         print(f"    Aristas: {len(grafo['aristas'])}")
 
 
+def validar(base: BaseDeConocimiento, ruta_casos: Path) -> int:
+    """Imprime el informe de precisión. Código de salida 1 si no alcanza la precisión mínima."""
+    try:
+        evaluacion = evaluar(base, cargar_casos(base, ruta_casos))
+    except FileNotFoundError:
+        print(f"No se encontraron los casos: {ruta_casos}", file=sys.stderr)
+        return 1
+    except (ErrorDeConocimiento, json.JSONDecodeError) as e:
+        print(e, file=sys.stderr)
+        return 1
+    print(informe(evaluacion))
+    print()
+    if evaluacion.precision < PRECISION_MINIMA:
+        print(f"✗ La precisión está por debajo del mínimo exigido ({PRECISION_MINIMA * 100:.0f} %).")
+        return 1
+    print(f"✓ Precisión dentro del mínimo exigido ({PRECISION_MINIMA * 100:.0f} %).")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="sistema_experto",
@@ -295,6 +315,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="ruta donde exportar la red de inferencia")
     parser.add_argument("--completo", action="store_true",
                         help="hacer todas las preguntas en lugar de solo las relevantes")
+    parser.add_argument("--validar", action="store_true",
+                        help="medir la precisión con los casos de referencia en lugar de hacer una consulta")
+    parser.add_argument("--casos", type=Path, default=RUTA_CASOS,
+                        help="archivo JSON con los casos de referencia (para --validar)")
     args = parser.parse_args(argv)
 
     try:
@@ -305,6 +329,9 @@ def main(argv: list[str] | None = None) -> int:
     except (ErrorDeConocimiento, json.JSONDecodeError) as e:
         print(e, file=sys.stderr)
         return 1
+
+    if args.validar:
+        return validar(base, args.casos)
 
     try:
         consultar(base, args.salida, args.completo)
