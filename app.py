@@ -145,6 +145,9 @@ def mostrar_pregunta(pregunta: Pregunta, r: dict[str, Valor]) -> None:
     with st.container(border=True):
         if entrada.prueba:
             st.caption("🔧 **PRUEBA DE VERIFICACIÓN** · confirma o descarta el diagnóstico antes de reparar")
+        if pregunta.rivales:
+            cercanos = " o ".join(f"*{dg.descripcion}* ({porcentaje(dg.certeza)})" for dg in pregunta.rivales)
+            st.caption(f"⚖️ **DIAGNÓSTICO DIFERENCIAL** · ¿{cercanos}? Esta respuesta ayuda a distinguirlos")
         st.subheader(pregunta.texto)
         if entrada.ayuda:
             st.caption(f"💡 {entrada.ayuda}")

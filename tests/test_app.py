@@ -87,6 +87,16 @@ class TestApp(unittest.TestCase):
         self.assertIn("🧮 ¿Por qué 75% de certeza?", [e.label for e in self.app.expander])
         self.assertIn("Descartados por evidencia en contra", [s.value for s in self.app.subheader])
 
+    def test_muestra_el_diagnostico_diferencial(self):
+        # sobrecalentamiento (90%) y driver o RAM (87%) están cerca
+        self.app.session_state["respuestas"] = {
+            "enciende": True, "hay_video": True, "se_apaga_solo": True, "calor_excesivo": True,
+            "pantalla_azul_frecuente": True}
+        self.app.run()
+        self.assertFalse(self.app.exception)
+        [aviso] = [c.value for c in self.app.caption if "DIAGNÓSTICO DIFERENCIAL" in c.value]
+        self.assertIn("Sobrecalentamiento", aviso)
+
     def test_ver_diagnostico_sin_mas_pruebas(self):
         self.clic("No")
         self.clic("Computadora de escritorio")

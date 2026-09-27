@@ -6,6 +6,7 @@ import unittest
 from sistema_experto.conocimiento import cargar
 from sistema_experto.modelo import NUMERO, OPCION
 from sistema_experto.motor import (
+    _Consulta,
     encadenar_hacia_adelante,
     hipotesis_abiertas,
     pregunta_sobre,
@@ -102,6 +103,62 @@ class TestConsultaDinamica(unittest.TestCase):
     def test_pregunta_sin_hipotesis_interesadas(self):
         pregunta = pregunta_sobre(BASE, {"enciende": False}, "disco_al_100")
         self.assertEqual(pregunta.hipotesis, ())
+
+    def test_no_pide_pruebas_que_ya_no_pueden_cambiar_el_diagnostico(self):
+        # El puente confirma el botón y descarta la placa madre (-0.95): aunque "con otra
+        # fuente tampoco" sumara 0.7 a la placa, no alcanzaría el umbral. Tampoco sirve ya
+        # restarle con la prueba del enchufe.
+        r = {"enciende": False, "tipo_equipo": "escritorio", "luces_led": True,
+             "interruptor_fuente_encendido": True, "prueba_puente_boton": True}
+        self.assertIsNone(siguiente_pregunta(BASE, r))
+        self.assertEqual(hipotesis_abiertas(BASE, r), [])
+        self.assertEqual(diagnosticos(r), {"falla_boton_encendido"})
+
+    def test_sigue_preguntando_lo_que_todavia_puede_cambiar_el_resultado(self):
+        # Sin la prueba del puente, la placa madre todavía puede confirmarse
+        r = {"enciende": False, "tipo_equipo": "escritorio", "luces_led": True,
+             "interruptor_fuente_encendido": True}
+        self.assertEqual(siguiente_pregunta(BASE, r).hecho, "prueba_puente_boton")
+
+    def test_la_cota_de_certeza_nunca_descarta_un_diagnostico_posible(self):
+        """
+        Solidez de la poda: con cualquier subconjunto de respuestas, todo diagnóstico que
+        el equipo completo termine estableciendo debe seguir siendo alcanzable.
+        """
+        azar = random.Random(7)
+        for _ in range(MUESTRAS):
+            verdad = {h: azar.choice((*DOMINIOS[h], None)) for h in HECHOS}
+            parcial = {h: v for h, v in verdad.items() if azar.random() < 0.5}
+            alcanzables = _Consulta(BASE, parcial).alcanzables
+            self.assertLessEqual(diagnosticos(verdad), alcanzables, parcial)
+
+    def test_diagnostico_diferencial_pregunta_lo_que_separa(self):
+        # Sobrecalentamiento (90%) y driver o RAM (87%) están cerca: el ventilador siempre
+        # activo solo aporta evidencia al sobrecalentamiento, así que va antes que el resto.
+        r = {"enciende": True, "hay_video": True, "se_apaga_solo": True, "calor_excesivo": True,
+             "pantalla_azul_frecuente": True}
+        pregunta = siguiente_pregunta(BASE, r)
+        self.assertEqual(pregunta.hecho, "ventilador_siempre_activo")
+        self.assertEqual({dg.hecho for dg in pregunta.rivales},
+                         {"sobrecalentamiento", "falla_driver_o_ram"})
+
+        # Con un solo diagnóstico no hay nada que separar: se sigue el orden habitual
+        del r["pantalla_azul_frecuente"]
+        pregunta = siguiente_pregunta(BASE, r)
+        self.assertEqual(pregunta.rivales, ())
+        self.assertNotEqual(pregunta.hecho, "ventilador_siempre_activo")
+
+    def test_diferencial_entre_varios_diagnosticos_cercanos(self):
+        # Audio (90%), router y disco (85%) y malware (72%) compiten: la prueba del antivirus
+        # es la que más puede cambiar el orden (el malware subiría al 97% o bajaría al 44%).
+        r = {"enciende": True, "hay_video": True, "inicia_lento": True, "disco_al_100": True,
+             "ventilador_siempre_activo": True, "hay_sonido": False, "salida_audio_correcta": False,
+             "conexion_red": False, "otros_dispositivos_conectan": False, "se_apaga_solo": False,
+             "pantalla_azul_frecuente": False, "fecha_hora_incorrecta": False,
+             "patron_pitidos": "ninguno", "perifericos_responden": True, "tipo_equipo": "escritorio"}
+        pregunta = siguiente_pregunta(BASE, r)
+        self.assertEqual(pregunta.hecho, "prueba_antivirus")
+        self.assertEqual({dg.hecho for dg in pregunta.rivales}, {"audio_mal_configurado", "malware"})
 
     def test_nunca_pierde_un_diagnostico_por_preguntar_menos(self):
         """

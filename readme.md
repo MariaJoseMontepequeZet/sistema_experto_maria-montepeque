@@ -18,6 +18,7 @@ proyecto con arquitectura modular, pruebas automatizadas, integración continua 
 ## ✨ Características
 
 - **Consulta dinámica:** solo pregunta lo que sirve para las hipótesis que siguen abiertas. Si el equipo no enciende, termina en 3 preguntas en lugar de 16.
+- **Diagnóstico diferencial:** cuando dos diagnósticos están cerca, primero hace la pregunta que mejor los separa. Además, deja de pedir pruebas que ya no pueden cambiar el resultado.
 - **Tres tipos de pregunta:** sí/no, opción múltiple (por ejemplo, el patrón de pitidos) y numéricas con unidad (por ejemplo, la temperatura del procesador).
 - **Explica su razonamiento:** muestra la cadena de reglas que llevó al diagnóstico, en texto y como diagrama.
 - **Encadenamiento hacia adelante y hacia atrás:** de los síntomas al diagnóstico, y de una hipótesis a los síntomas que la confirmarían.

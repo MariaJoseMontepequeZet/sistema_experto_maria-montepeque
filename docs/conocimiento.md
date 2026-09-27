@@ -132,8 +132,11 @@ Reglas de uso (el validador las comprueba):
   recomendación), y ese diagnóstico no puede usarse como condición de otras reglas.
 - La evidencia a favor, por sí sola, **nunca crea un diagnóstico**: solo refuerza uno que ya sugirió una
   regla con recomendación.
-- La consulta dinámica también pregunta por la evidencia de los diagnósticos que siguen siendo posibles,
-  porque puede cambiar su certeza.
+- La consulta dinámica también pregunta por la evidencia de los diagnósticos que todavía pueden superar el
+  umbral, porque puede cambiar su certeza. Cuando la evidencia en contra ya deja a un diagnóstico sin
+  posibilidad de superarlo, deja de preguntar por él (ver [arquitectura](arquitectura.md#consulta-dinámica)).
+- Una prueba que suma a un diagnóstico y resta a otro (por ejemplo, otro monitor) es la que el sistema usa
+  para el **diagnóstico diferencial** cuando esos dos están cerca: vale la pena escribirlas.
 
 ## Pruebas de verificación
 
