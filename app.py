@@ -27,6 +27,7 @@ from sistema_experto.motor import (
     pregunta_sobre,
     siguiente_pregunta,
 )
+from sistema_experto.validacion import cargar_casos, evaluar
 from sistema_experto.visualizacion import dot_razonamiento, dot_red
 
 REPOSITORIO = "https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque"
@@ -41,6 +42,13 @@ def base_de_conocimiento():
 
 
 BASE = base_de_conocimiento()
+
+
+@st.cache_data
+def precision_medida() -> tuple[float, int, int]:
+    """Precisión sobre los casos de referencia (se calcula una sola vez)."""
+    evaluacion = evaluar(BASE, cargar_casos(BASE))
+    return evaluacion.precision, sum(r.acierto for r in evaluacion.cubiertos), len(evaluacion.cubiertos)
 
 
 # ── Estado de la sesión ───────────────────────────────────────
@@ -114,6 +122,9 @@ def barra_lateral(r: dict[str, Valor]) -> None:
         st.divider()
         st.caption("⚠️ **Aviso:** este sistema orienta, no reemplaza a un técnico. "
                    "Apaga y desconecta el equipo antes de abrirlo.")
+        precision, aciertos, total = precision_medida()
+        st.caption(f"📊 **Precisión medida: {precision * 100:.0f} %** ({aciertos} de {total} "
+                   f"[casos de referencia]({REPOSITORIO}/blob/main/casos/casos_referencia.json))")
         st.caption(f"[Código fuente en GitHub]({REPOSITORIO})")
 
 

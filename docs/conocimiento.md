@@ -200,8 +200,13 @@ python -c "from sistema_experto import cargar; b = cargar(); print(len(b.reglas)
 ```bash
 python -m unittest
 ```
+```bash
+python main.py --validar
+```
 
-El CI hace la misma verificación en cada Pull Request.
+El CI hace la misma verificación en cada Pull Request. **Cada regla nueva debe llegar con al menos un caso de
+referencia** que la cubra (ver [Validación](validacion.md)): así se sabe si mejora la precisión o si rompe
+otro diagnóstico.
 
 ## Buenas prácticas
 

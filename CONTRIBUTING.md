@@ -48,7 +48,8 @@ git commit -m "feat: preguntar solo por hipótesis que siguen vivas"
 
 # 4. Verificar antes de subir
 python -m unittest
-ruff check .        # opcional: el CI también lo revisa
+python main.py --validar   # precisión con los casos de referencia
+ruff check .               # opcional: el CI también lo revisa
 
 # 5. Subir la rama
 git push -u origin feat/preguntas-dinamicas
