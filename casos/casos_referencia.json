@@ -6,16 +6,20 @@
       "patron_pitidos": "uno_corto", "inicia_lento": false, "disco_al_100": false,
       "ventilador_siempre_activo": false, "pantalla_azul_frecuente": false, "se_apaga_solo": false,
       "calor_excesivo": false, "fecha_hora_incorrecta": false, "conexion_red": true,
-      "otros_dispositivos_conectan": true, "otras_apps_funcionan": true, "perifericos_responden": true
+      "otros_dispositivos_conectan": true, "otras_apps_funcionan": true, "perifericos_responden": true,
+      "hay_sonido": true
     },
     "laptop_sana": {
       "enciende": true, "tipo_equipo": "laptop", "luces_led": true, "hay_video": true,
       "patron_pitidos": "ninguno", "inicia_lento": false, "disco_al_100": false,
       "ventilador_siempre_activo": false, "pantalla_azul_frecuente": false, "se_apaga_solo": false,
       "calor_excesivo": false, "fecha_hora_incorrecta": false, "conexion_red": true,
-      "otros_dispositivos_conectan": true, "otras_apps_funcionan": true, "perifericos_responden": true
+      "otros_dispositivos_conectan": true, "otras_apps_funcionan": true, "perifericos_responden": true,
+      "hay_sonido": true
     },
-    "escritorio_no_enciende": { "enciende": false, "tipo_equipo": "escritorio", "luces_led": false },
+    "escritorio_no_enciende": {
+      "enciende": false, "tipo_equipo": "escritorio", "luces_led": false, "interruptor_fuente_encendido": true
+    },
     "laptop_no_enciende": { "enciende": false, "tipo_equipo": "laptop", "luces_led": false }
   },
   "casos": [
@@ -168,19 +172,78 @@
     },
     {
       "id": "C29", "descripcion": "Escritorio sin señales de vida; con otra fuente tampoco enciende",
-      "plantilla": "escritorio_no_enciende", "respuestas": { "prueba_otra_fuente": false },
-      "esperado": "falla_placa_o_boton",
-      "fuente": "Descartada la fuente: botón de encendido, cable o placa madre"
+      "plantilla": "escritorio_no_enciende",
+      "respuestas": { "prueba_otro_enchufe": false, "prueba_otra_fuente": false },
+      "esperado": "falla_placa_madre",
+      "fuente": "Descartados el enchufe y la fuente, sin luces de reposo: la placa madre"
     },
     {
       "id": "C30", "descripcion": "Todo funciona pero no hay sonido",
-      "plantilla": "escritorio_sano", "esperado": "falla_audio",
-      "fuente": "Drivers o dispositivo de audio"
+      "plantilla": "escritorio_sano", "respuestas": { "hay_sonido": false, "salida_audio_correcta": true },
+      "esperado": "falla_audio", "fuente": "Con la salida bien configurada, el driver de audio es la causa más frecuente"
     },
     {
       "id": "C31", "descripcion": "Laptop sin imagen en su pantalla; con un monitor externo sí hay imagen",
       "plantilla": "laptop_sana", "respuestas": { "hay_video": false, "prueba_otro_monitor": true },
       "esperado": "falla_pantalla_laptop", "fuente": "Pantalla interna, cable flex o retroiluminación"
+    },
+    {
+      "id": "C32", "descripcion": "Escritorio sin señales de vida con el interruptor de la fuente apagado",
+      "plantilla": "escritorio_no_enciende", "respuestas": { "interruptor_fuente_encendido": false },
+      "esperado": "interruptor_fuente_apagado", "fuente": "Primera verificación ante un equipo que no enciende"
+    },
+    {
+      "id": "C33", "descripcion": "Escritorio sin señales de vida; en otro enchufe enciende",
+      "plantilla": "escritorio_no_enciende", "respuestas": { "prueba_otro_enchufe": true },
+      "esperado": "falla_alimentacion_externa", "fuente": "Cable de corriente, enchufe o regleta defectuosos"
+    },
+    {
+      "id": "C34", "descripcion": "No arranca, pero la luz de la placa madre está encendida",
+      "plantilla": "escritorio_no_enciende", "respuestas": { "luces_led": true },
+      "esperado": "falla_boton_encendido",
+      "fuente": "Con energía de reposo presente, la causa más frecuente es el botón o su conexión"
+    },
+    {
+      "id": "C35", "descripcion": "Luz de la placa encendida; al puentear los pines del botón arranca",
+      "plantilla": "escritorio_no_enciende", "respuestas": { "luces_led": true, "prueba_puente_boton": true },
+      "esperado": "falla_boton_encendido", "fuente": "Prueba del conector POWER SW"
+    },
+    {
+      "id": "C36", "descripcion": "Luz de la placa encendida; al puentear los pines del botón tampoco arranca",
+      "plantilla": "escritorio_no_enciende", "respuestas": { "luces_led": true, "prueba_puente_boton": false },
+      "esperado": "falla_placa_madre", "fuente": "Descartado el botón con energía de reposo presente"
+    },
+    {
+      "id": "C37", "descripcion": "Sin sonido: la salida de audio estaba silenciada",
+      "plantilla": "laptop_sana", "respuestas": { "hay_sonido": false, "salida_audio_correcta": false },
+      "esperado": "audio_mal_configurado", "fuente": "Causa más frecuente de falta de sonido"
+    },
+    {
+      "id": "C38", "descripcion": "Sin sonido; con otros audífonos sí se escucha",
+      "plantilla": "escritorio_sano",
+      "respuestas": { "hay_sonido": false, "salida_audio_correcta": true, "prueba_otros_parlantes": true },
+      "esperado": "falla_parlantes", "fuente": "Sustitución de los parlantes o audífonos"
+    },
+    {
+      "id": "C39", "descripcion": "Sin sonido; con otros audífonos tampoco se escucha",
+      "plantilla": "escritorio_sano",
+      "respuestas": { "hay_sonido": false, "salida_audio_correcta": true, "prueba_otros_parlantes": false },
+      "esperado": "falla_audio", "fuente": "Descartados los parlantes: driver o controlador de audio"
+    },
+    {
+      "id": "C40", "descripcion": "Laptop sin imagen; con un monitor externo tampoco hay imagen",
+      "plantilla": "laptop_sana", "respuestas": { "hay_video": false, "prueba_otro_monitor": false },
+      "esperado": "falla_video", "fuente": "Sin imagen en ninguna pantalla: la salida de video de la laptop"
+    },
+    {
+      "id": "C41", "descripcion": "La batería de la laptop dura muy poco",
+      "plantilla": "laptop_sana", "esperado": "bateria_desgastada",
+      "fuente": "Desgaste de la batería por ciclos de carga (pendiente de agregar al conocimiento)"
+    },
+    {
+      "id": "C42", "descripcion": "El equipo se reinicia en bucle después de una actualización de Windows",
+      "plantilla": "escritorio_sano", "esperado": "falla_actualizacion_windows",
+      "fuente": "Actualización fallida del sistema operativo (pendiente de agregar al conocimiento)"
     }
   ]
 }
