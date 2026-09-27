@@ -70,8 +70,15 @@ Es la única parte que usa `input()` y `print()`. En cada paso le pide al motor 
 1. Analiza cada diagnóstico y descarta los que ya contradice alguna respuesta, igual que los ya confirmados.
 2. Junta las preguntas que les faltan a los diagnósticos que siguen abiertos.
 3. Elige la que necesitan más hipótesis a la vez. Si hay empate, prefiere la de mayor confianza y luego el orden del JSON. Las **pruebas de verificación** (`"prueba": true`) quedan para el final: solo se proponen cuando ya no quedan síntomas por preguntar.
-   Un diagnóstico cuenta como "todavía posible" si alguna de sus reglas ya se cumple o puede cumplirse con preguntas sin responder; las respondidas con "no sé" no cuentan, así no se pregunta evidencia de algo que ya no se puede confirmar.
 4. Si no queda ninguna, termina la consulta.
+
+**Solo pregunta lo que todavía puede cambiar el resultado.** Para cada diagnóstico calcula una **cota de certeza**: combina la evidencia que ya se disparó con toda la evidencia a favor que las preguntas pendientes todavía pueden activar (a la confianza máxima de cada regla), y supone que no llegará más evidencia en contra. Si esa cota no supera el umbral, ninguna respuesta puede establecer el diagnóstico y el motor deja de preguntar por él, tanto por sus síntomas como por su evidencia. Las preguntas respondidas con "no sé" no cuentan como pendientes.
+
+Por ejemplo: si el equipo no enciende, tiene luz en la placa y **al puentear los pines del botón arranca**, la placa madre recibe −0,95. Aunque la prueba con otra fuente le sumara 0,7, quedaría en −0,83, así que el sistema ya no pide esa prueba ni la del enchufe: el diagnóstico (botón de encendido, 96 %) no puede cambiar.
+
+La cota es segura porque cada evidencia a favor solo puede subir la certeza (fórmula de MYCIN) y la que está en contra, una vez disparada, no desaparece. Una prueba basada en propiedades lo comprueba: con miles de subconjuntos de respuestas al azar, ningún diagnóstico que el equipo completo termine estableciendo queda fuera de los alcanzables.
+
+**Diagnóstico diferencial.** Si hay diagnósticos a menos de 20 puntos del principal (`MARGEN_DIFERENCIAL`), por ejemplo sobrecalentamiento al 90 % y driver o RAM al 87 %, el motor simula cada respuesta posible de cada pregunta disponible y mide cuánto puede cambiar la distancia entre cada par de rivales. Primero va la que más los separa, y la interfaz lo indica ("⚖️ Diagnóstico diferencial"). Los síntomas se siguen preguntando antes que las pruebas: el diferencial ordena las preguntas dentro de cada grupo y no hace que una prueba física se adelante a un síntoma.
 
 Una prueba basada en propiedades verifica que preguntar menos nunca hace perder un diagnóstico: genera miles de equipos al azar (con semilla fija, para que sea reproducible), con todas las opciones y un valor por cada región de los umbrales numéricos, y comprueba que la consulta dinámica llega a los mismos diagnósticos que preguntar todo.
 

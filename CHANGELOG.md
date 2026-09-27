@@ -4,6 +4,21 @@ Todos los cambios relevantes del proyecto se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.9.0] - 2026-09-27
+
+### Agregado
+- Diagnóstico diferencial: si hay diagnósticos a menos de 20 puntos del principal, la consulta simula cada
+  respuesta posible y hace primero la pregunta que más puede separarlos. La web y la consola lo indican
+  ("⚖️ Diagnóstico diferencial"). Los síntomas se siguen preguntando antes que las pruebas.
+
+### Cambiado
+- La consulta ya no pregunta por diagnósticos que no pueden superar el umbral con la evidencia que falta
+  (cota de certeza de MYCIN). Por ejemplo, tras confirmar el botón de encendido con la prueba del puente, ya
+  no pide las pruebas del enchufe y de otra fuente. En 2000 equipos simulados, las pruebas físicas pedidas
+  bajan un 11 %, sin perder ningún diagnóstico.
+- "Hipótesis abiertas" en la web tampoco cuenta los diagnósticos que ya no pueden establecerse.
+- `pregunta_sobre()` ya no recibe el parámetro interno `interesadas`.
+
 ## [1.8.0] - 2026-09-27
 
 ### Agregado
@@ -156,6 +171,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Cambiado
 - Arquitectura separada en conocimiento, motor e interfaz; hechos booleanos con negación.
 
+[1.9.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.6.0...v1.7.0
