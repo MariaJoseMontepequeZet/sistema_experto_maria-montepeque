@@ -38,13 +38,13 @@ class TestCasosDeReferencia(unittest.TestCase):
 
     def test_los_casos_fuera_de_cobertura_se_reportan_aparte(self):
         fuera = {r.caso.id for r in EVALUACION.fuera_de_cobertura}
-        self.assertIn("C29", fuera)
-        self.assertNotIn("C29", {r.caso.id for r in EVALUACION.fallos})
+        self.assertIn("C41", fuera)
+        self.assertNotIn("C41", {r.caso.id for r in EVALUACION.fallos})
 
     def test_la_consulta_simulada_no_pregunta_de_mas(self):
-        # C01: escritorio sin señales de vida → 3 síntomas y 1 prueba de verificación
+        # C01: escritorio sin señales de vida → 4 síntomas y 2 pruebas (otro enchufe, otra fuente)
         [c01] = [r for r in EVALUACION.resultados if r.caso.id == "C01"]
-        self.assertEqual(c01.preguntas, 4)
+        self.assertEqual(c01.preguntas, 6)
 
     def test_lo_que_el_caso_no_indica_se_responde_no_se(self):
         respuestas = simular_consulta(BASE, {"enciende": False, "tipo_equipo": "escritorio"})

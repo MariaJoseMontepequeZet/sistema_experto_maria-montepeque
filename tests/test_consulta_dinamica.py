@@ -37,9 +37,12 @@ def dominio(hecho: str) -> tuple:
 
 DOMINIOS = {h: dominio(h) for h in HECHOS}
 
-# La prueba exhaustiva recorre decenas de miles de caminos: corre siempre en el CI
-# (GitHub Actions define CI=true) y localmente con PRUEBAS_EXHAUSTIVAS=1.
-EXHAUSTIVAS = bool(os.environ.get("CI") or os.environ.get("PRUEBAS_EXHAUSTIVAS"))
+# Recorrer el árbol de decisión completo ya no es viable (más de 4000 millones de combinaciones
+# de respuestas y creciendo con cada pregunta nueva). La propiedad se verifica con muestras
+# aleatorias reproducibles: muchas en el CI (GitHub Actions define CI=true) o con
+# PRUEBAS_EXTENSAS=1, y menos en local para que la suite sea rápida.
+EXTENSAS = bool(os.environ.get("CI") or os.environ.get("PRUEBAS_EXTENSAS"))
+MUESTRAS = 4000 if EXTENSAS else 300
 
 
 def simular(verdad: dict) -> dict:
@@ -62,10 +65,13 @@ class TestConsultaDinamica(unittest.TestCase):
         confianzas = [r.confianza for r in pregunta.hipotesis]
         self.assertEqual(confianzas, sorted(confianzas, reverse=True))
 
-    def test_si_no_enciende_bastan_tres_sintomas_y_una_prueba(self):
-        verdad = {h: False for h in HECHOS} | {"tipo_equipo": "escritorio", "prueba_otra_fuente": True}
+    def test_si_no_enciende_bastan_cuatro_sintomas_y_las_pruebas(self):
+        verdad = {h: False for h in HECHOS} | {
+            "tipo_equipo": "escritorio", "interruptor_fuente_encendido": True, "prueba_otra_fuente": True}
         respuestas = simular(verdad)
-        self.assertEqual(list(respuestas), ["enciende", "tipo_equipo", "luces_led", "prueba_otra_fuente"])
+        orden = list(respuestas)
+        self.assertEqual(orden[:4], ["enciende", "tipo_equipo", "luces_led", "interruptor_fuente_encendido"])
+        self.assertEqual(set(orden[4:]), {"prueba_otro_enchufe", "prueba_otra_fuente"})   # solo pruebas
         self.assertEqual(diagnosticos(respuestas), {"falla_fuente"})
 
     def test_la_pregunta_incluye_su_tipo_y_opciones(self):
@@ -97,45 +103,20 @@ class TestConsultaDinamica(unittest.TestCase):
         pregunta = pregunta_sobre(BASE, {"enciende": False}, "disco_al_100")
         self.assertEqual(pregunta.hipotesis, ())
 
-    @unittest.skipUnless(EXHAUSTIVAS, "prueba exhaustiva: se ejecuta en el CI o con PRUEBAS_EXHAUSTIVAS=1")
     def test_nunca_pierde_un_diagnostico_por_preguntar_menos(self):
         """
-        Recorre el árbol de decisión COMPLETO de la consulta dinámica (cada rama con todas
-        las respuestas posibles) y, en cada hoja, comprueba que el resultado sería el mismo
-        para las respuestas que no se preguntaron: todas si son pocas combinaciones, o una
-        muestra reproducible si son muchas.
+        Propiedad central de la consulta dinámica: para cualquier equipo, preguntar solo lo
+        relevante da los mismos diagnósticos que preguntar todo. Se verifica con equipos
+        generados al azar (semilla fija, reproducible) en todo el dominio de respuestas.
         """
         azar = random.Random(2026)
-        hojas = comprobaciones = 0
-        pendientes = [{}]
-        while pendientes:
-            respuestas = pendientes.pop()
-            pregunta = siguiente_pregunta(BASE, respuestas)
-            if pregunta is not None:
-                for valor in DOMINIOS[pregunta.hecho]:
-                    pendientes.append({**respuestas, pregunta.hecho: valor})
-                continue
-
-            hojas += 1
-            esperado = diagnosticos(respuestas)
-            sin_preguntar = [h for h in HECHOS if h not in respuestas]
-            combinaciones = 1
-            for h in sin_preguntar:
-                combinaciones *= len(DOMINIOS[h])
-            if combinaciones <= 4:
-                completar = itertools.product(*(DOMINIOS[h] for h in sin_preguntar))
-            else:
-                completar = ([azar.choice(DOMINIOS[h]) for h in sin_preguntar] for _ in range(2))
-            for valores in completar:
-                verdad = {**respuestas, **dict(zip(sin_preguntar, valores, strict=True))}
-                self.assertEqual(esperado, diagnosticos(verdad), verdad)
-                comprobaciones += 1
-        self.assertGreater(hojas, 10_000)   # la documentación cita esta cifra
-        self.assertGreaterEqual(comprobaciones, hojas)
+        for _ in range(MUESTRAS):
+            verdad = {h: azar.choice(DOMINIOS[h]) for h in HECHOS}
+            self.assertEqual(diagnosticos(simular(verdad)), diagnosticos(verdad), verdad)
 
     def test_equivale_a_preguntar_todo_con_no_se(self):
         azar = random.Random(42)
-        for _ in range(300):
+        for _ in range(MUESTRAS):
             verdad = {h: azar.choice((*DOMINIOS[h], None)) for h in HECHOS}
             self.assertEqual(diagnosticos(simular(verdad)), diagnosticos(verdad), verdad)
 

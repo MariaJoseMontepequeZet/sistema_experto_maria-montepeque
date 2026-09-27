@@ -42,9 +42,13 @@ class TestApp(unittest.TestCase):
         self.assertIn("tipo de equipo", self.pregunta())
         self.clic("Computadora de escritorio")    # pregunta de opción: un botón por opción
         self.clic("No")                           # ¿luces LED?
-        self.assertIn("otra fuente", self.pregunta())    # prueba de verificación
-        self.assertIn("No puedo hacerla", [b.label for b in self.app.button])
-        self.clic("Sí")                           # con otra fuente el problema desaparece
+        self.assertIn("interruptor", self.pregunta())
+        self.clic("Sí")                           # el interruptor está encendido
+        # pruebas de verificación: otro enchufe no lo arregla; con otra fuente sí
+        pruebas = ("Prueba con otra fuente", "Conecta el equipo")
+        while self.app.subheader and self.pregunta().startswith(pruebas):
+            self.assertIn("No puedo hacerla", [b.label for b in self.app.button])
+            self.clic("Sí" if "otra fuente" in self.pregunta() else "No")
         self.assertIn("Fuente de poder dañada", self.app.success[0].value)
         self.assertIn("99%", self.app.success[0].value)
         self.assertIn("Nunca abras la fuente", self.app.warning[0].value)
@@ -75,7 +79,7 @@ class TestApp(unittest.TestCase):
         respuestas.update(enciende=True, luces_led=True, hay_video=True, perifericos_responden=True,
                           tipo_equipo="escritorio", patron_pitidos="uno_corto", se_apaga_solo=True,
                           calor_excesivo=True, temperatura_cpu=60.0, otras_apps_funcionan=True,
-                          otros_dispositivos_conectan=False)
+                          otros_dispositivos_conectan=False, hay_sonido=True)
         self.app.session_state["respuestas"] = respuestas
         self.app.run()
         self.assertFalse(self.app.exception)
@@ -87,10 +91,12 @@ class TestApp(unittest.TestCase):
         self.clic("No")
         self.clic("Computadora de escritorio")
         self.clic("No")
+        self.clic("Sí")                           # interruptor encendido
+        prueba = self.pregunta()
         self.clic("⏭️ Ver el diagnóstico sin más pruebas")
         self.assertIn("Fuente de poder dañada", self.app.success[0].value)
         self.clic("↩️ Deshacer")                  # vuelve a la prueba que se saltó
-        self.assertIn("otra fuente", self.pregunta())
+        self.assertEqual(self.pregunta(), prueba)
 
     def test_deshacer_vuelve_a_la_pregunta_anterior(self):
         self.clic("No")
