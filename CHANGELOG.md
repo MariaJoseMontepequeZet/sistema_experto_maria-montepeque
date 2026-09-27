@@ -4,6 +4,13 @@ Todos los cambios relevantes del proyecto se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.7.1] - 2026-09-27
+
+### Corregido
+- La web guardaba en caché la base de conocimiento y la precisión medida sin detectar cambios en los
+  archivos: tras publicar conocimiento nuevo, la demo podía seguir usando el anterior sin mostrar ningún
+  error. Ahora la caché depende de una huella (SHA-256) del contenido de los archivos y se recarga sola.
+
 ## [1.7.0] - 2026-09-26
 
 ### Agregado
@@ -132,6 +139,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Cambiado
 - Arquitectura separada en conocimiento, motor e interfaz; hechos booleanos con negación.
 
+[1.7.1]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.4.0...v1.5.0
