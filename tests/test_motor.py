@@ -29,9 +29,9 @@ BASE = cargar()
 
 
 def respuestas(**valores) -> dict:
-    """Consulta de referencia: todo 'no', escritorio, sin pitidos y temperatura desconocida,
-    salvo lo indicado."""
-    r = {hecho: False for hecho, h in BASE.hechos.items() if h.tipo == SI_NO}
+    """Consulta de referencia: síntomas en 'no', escritorio, sin pitidos, y las pruebas de
+    verificación sin hacer (desconocidas), salvo lo indicado."""
+    r = {hecho: (None if h.prueba else False) for hecho, h in BASE.hechos.items() if h.tipo == SI_NO}
     r.update(tipo_equipo="escritorio", patron_pitidos="ninguno", temperatura_cpu=None)
     r.update(valores)
     return r
@@ -50,8 +50,9 @@ def diagnosticos(r: dict) -> dict[str, float]:
 
 class TestBaseDeConocimiento(unittest.TestCase):
     def test_la_base_incluida_es_valida(self):
-        self.assertEqual(len(BASE.reglas), 21)
-        self.assertEqual(len(BASE.hechos), 17)
+        self.assertEqual(len(BASE.reglas), 36)
+        self.assertEqual(len(BASE.hechos), 23)
+        self.assertEqual(sum(h.prueba for h in BASE.hechos.values()), 7)
         self.assertEqual({h.tipo for h in BASE.hechos.values()}, {SI_NO, OPCION, NUMERO})
 
     def _datos(self):
@@ -78,7 +79,7 @@ class TestBaseDeConocimiento(unittest.TestCase):
 
     def test_detecta_condiciones_identicas(self):
         datos = self._datos()
-        clon = copy.deepcopy(datos["reglas"][-1])
+        clon = copy.deepcopy(self._regla(datos, "R10"))
         clon["id"], clon["entonces"] = "R99", "otra_cosa"
         datos["reglas"].append(clon)
         self.assertIn("mismas condiciones", self._errores(datos))
@@ -450,6 +451,57 @@ class TestEvidencia(unittest.TestCase):
         self.assertIn("se usa como condición", "\n".join(ctx.exception.errores))
 
 
+class TestPruebasDeVerificacion(unittest.TestCase):
+    def test_una_prueba_confirma(self):
+        self.assertEqual(diagnosticos(respuestas(prueba_otra_fuente=True)), {"falla_fuente": 0.996})
+        r = equipo_sano(hay_video=False, patron_pitidos="uno_corto", prueba_otro_monitor=True)
+        self.assertEqual(diagnosticos(r), {"falla_monitor": 0.98})
+
+    def test_una_prueba_descarta_aunque_el_sintoma_sea_fuerte(self):
+        inferencia = encadenar_hacia_adelante(BASE, respuestas(prueba_otra_fuente=False))
+        self.assertEqual(inferencia.diagnosticos, [])
+        self.assertEqual([dg.hecho for dg in inferencia.descartados], ["falla_fuente"])
+
+    def test_una_misma_prueba_apoya_una_causa_y_descarta_otra(self):
+        # Pitido largo y cortos sugiere la tarjeta de video; si otro monitor sí da imagen, no lo es
+        r = equipo_sano(hay_video=False, patron_pitidos="largo_y_cortos", prueba_otro_monitor=True)
+        inferencia = encadenar_hacia_adelante(BASE, r)
+        self.assertEqual([dg.hecho for dg in inferencia.descartados], ["falla_video"])
+        r["prueba_otro_monitor"] = False
+        self.assertAlmostEqual(diagnosticos(r)["falla_video"], 0.95)
+
+    def test_prueba_de_opcion(self):
+        base = equipo_sano(inicia_lento=True, disco_al_100=True)
+        certezas = {estado: diagnosticos(dict(base, prueba_smart=estado))["falla_disco"]
+                    for estado in ("malo", "precaucion", "bueno")}
+        self.assertGreater(certezas["malo"], certezas["precaucion"])
+        self.assertGreater(certezas["precaucion"], 0.85)          # la regla sola da 0.85
+        self.assertLess(certezas["bueno"], 0.85)
+
+    def test_las_pruebas_se_preguntan_despues_de_los_sintomas(self):
+        from sistema_experto.motor import siguiente_pregunta
+        verdad = equipo_sano(inicia_lento=True, disco_al_100=True, prueba_smart="malo")
+        orden, r = [], {}
+        while (p := siguiente_pregunta(BASE, r)) is not None:
+            orden.append(BASE.hechos[p.hecho].prueba)
+            r[p.hecho] = verdad[p.hecho]
+        self.assertIn(True, orden)
+        self.assertEqual(orden, sorted(orden), "una prueba se preguntó antes que un síntoma")
+
+    def test_la_temperatura_solo_se_pide_si_hay_imagen(self):
+        from sistema_experto.motor import siguiente_pregunta
+        r = {"enciende": True, "hay_video": False}
+        while (p := siguiente_pregunta(BASE, r)) is not None:
+            self.assertNotEqual(p.hecho, "temperatura_cpu")
+            r[p.hecho] = None
+
+    def test_porcentaje_no_redondea_a_certeza_absoluta(self):
+        from sistema_experto.modelo import porcentaje
+        self.assertEqual(porcentaje(0.996), "99%")
+        self.assertEqual(porcentaje(1.0), "100%")
+        self.assertEqual(porcentaje(0.75), "75%")
+
+
 class TestEncadenamientoHaciaAtras(unittest.TestCase):
     def test_indica_lo_que_falta(self):
         [analisis] = encadenar_hacia_atras(BASE, "R07", {"enciende": True, "se_apaga_solo": True})
@@ -470,13 +522,15 @@ class TestEncadenamientoHaciaAtras(unittest.TestCase):
         self.assertEqual(analisis.por_preguntar, [])
 
     def test_se_activa(self):
-        [analisis] = encadenar_hacia_atras(
+        analisis = encadenar_hacia_atras(
             BASE, "falla_ram", {"enciende": True, "hay_video": False, "patron_pitidos": "repetidos"})
-        self.assertTrue(analisis.se_activa)
+        self.assertEqual([a.regla.id for a in analisis], ["R02", "E12", "E13"])
+        self.assertTrue(analisis[0].se_activa)
 
     def test_condiciones_numericas_y_de_opcion(self):
-        [alta] = encadenar_hacia_atras(BASE, "R14", {"enciende": True, "temperatura_cpu": 95})
-        [normal] = encadenar_hacia_atras(BASE, "R14", {"enciende": True, "temperatura_cpu": 50})
+        con_imagen = {"enciende": True, "hay_video": True}
+        [alta] = encadenar_hacia_atras(BASE, "R14", {**con_imagen, "temperatura_cpu": 95})
+        [normal] = encadenar_hacia_atras(BASE, "R14", {**con_imagen, "temperatura_cpu": 50})
         [laptop] = encadenar_hacia_atras(BASE, "R01", {"tipo_equipo": "laptop"})
         self.assertTrue(alta.se_activa)
         self.assertTrue(normal.descartada)

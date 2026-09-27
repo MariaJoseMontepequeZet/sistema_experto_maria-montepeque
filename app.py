@@ -13,7 +13,7 @@ import json
 import streamlit as st
 
 from sistema_experto.conocimiento import cargar
-from sistema_experto.modelo import NUMERO, OPCION, Valor
+from sistema_experto.modelo import NUMERO, OPCION, Valor, porcentaje
 from sistema_experto.motor import (
     CONTRADICHA,
     CUMPLIDA,
@@ -61,15 +61,25 @@ def responder_numero(hecho: str, clave: str) -> None:
 
 def deshacer() -> None:
     r = respuestas()
-    if r:
+    if st.session_state.get("terminado"):
+        st.session_state.terminado = False   # volver a la prueba que se saltó
+    elif r:
         r.pop(next(reversed(r)))
 
 
 def reiniciar() -> None:
     st.session_state.respuestas = {}
+    st.session_state.terminado = False
+
+
+def terminar() -> None:
+    """Ver el diagnóstico sin hacer las pruebas de verificación que faltan."""
+    st.session_state.terminado = True
 
 
 def proxima_pregunta(r: dict[str, Valor]) -> Pregunta | None:
+    if st.session_state.get("terminado"):
+        return None
     if st.session_state.get("completo"):
         faltan = [h for h in BASE.preguntas if h not in r]
         return pregunta_sobre(BASE, r, faltan[0]) if faltan else None
@@ -118,7 +128,10 @@ def mostrar_pregunta(pregunta: Pregunta, r: dict[str, Valor]) -> None:
     col2.metric("Hipótesis abiertas", f"{len(abiertas)} de {diagnosticos}")
 
     entrada = pregunta.entrada
+    no_se = "No puedo hacerla" if entrada.prueba else "No sé"
     with st.container(border=True):
+        if entrada.prueba:
+            st.caption("🔧 **PRUEBA DE VERIFICACIÓN** · confirma o descarta el diagnóstico antes de reparar")
         st.subheader(pregunta.texto)
         if entrada.ayuda:
             st.caption(f"💡 {entrada.ayuda}")
@@ -127,7 +140,7 @@ def mostrar_pregunta(pregunta: Pregunta, r: dict[str, Valor]) -> None:
             for valor, etiqueta in entrada.opciones:
                 st.button(etiqueta, on_click=responder, args=(pregunta.hecho, valor),
                           key=f"opcion:{pregunta.hecho}:{valor}", width="stretch")
-            st.button("No sé", on_click=responder, args=(pregunta.hecho, None), width="stretch")
+            st.button(no_se, on_click=responder, args=(pregunta.hecho, None), width="stretch")
 
         elif entrada.tipo == NUMERO:
             clave = f"numero:{pregunta.hecho}"
@@ -136,20 +149,23 @@ def mostrar_pregunta(pregunta: Pregunta, r: dict[str, Valor]) -> None:
                 min_value=entrada.minimo, max_value=entrada.maximo, value=None,
                 step=1.0, format="%g", key=clave, placeholder="Escribe el valor",
             )
-            responder_col, no_se = st.columns(2)
+            responder_col, no_se_col = st.columns(2)
             responder_col.button("Responder", on_click=responder_numero, args=(pregunta.hecho, clave),
                                  type="primary", disabled=st.session_state.get(clave) is None,
                                  width="stretch")
-            no_se.button("No sé", on_click=responder, args=(pregunta.hecho, None), width="stretch")
+            no_se_col.button(no_se, on_click=responder, args=(pregunta.hecho, None), width="stretch")
 
         else:
-            si, no, no_se = st.columns(3)
+            si, no, no_se_col = st.columns(3)
             si.button("Sí", on_click=responder, args=(pregunta.hecho, True),
                       type="primary", width="stretch")
             no.button("No", on_click=responder, args=(pregunta.hecho, False),
                       width="stretch")
-            no_se.button("No sé", on_click=responder, args=(pregunta.hecho, None),
-                         width="stretch")
+            no_se_col.button(no_se, on_click=responder, args=(pregunta.hecho, None),
+                             width="stretch")
+
+    if entrada.prueba:
+        st.button("⏭️ Ver el diagnóstico sin más pruebas", on_click=terminar)
 
     with st.expander("🤔 ¿Por qué me preguntas esto?"):
         if pregunta.hipotesis:
@@ -183,7 +199,7 @@ def mostrar_resultado(r: dict[str, Valor]) -> None:
                     "Prueba de nuevo o revisa la pestaña *Explorar hipótesis* para ver qué faltó.")
         else:
             principal, *otros = diagnosticos
-            st.success(f"### {principal.descripcion}\nCerteza: **{principal.certeza * 100:.0f}%**")
+            st.success(f"### {principal.descripcion}\nCerteza: **{porcentaje(principal.certeza)}**")
             for rec in principal.recomendaciones:
                 st.markdown(f"👉 {rec}")
             for adv in principal.advertencias:
@@ -192,7 +208,7 @@ def mostrar_resultado(r: dict[str, Valor]) -> None:
             if otros:
                 st.subheader("Otros diagnósticos posibles")
                 for dg in otros:
-                    st.progress(dg.certeza, text=f"{dg.descripcion} · {dg.certeza * 100:.0f}%")
+                    st.progress(dg.certeza, text=f"{dg.descripcion} · {porcentaje(dg.certeza)}")
                     for rec in dg.recomendaciones:
                         st.caption(f"👉 {rec}")
                     for adv in dg.advertencias:
@@ -248,7 +264,7 @@ def mostrar_evidencia(dg: Diagnostico) -> None:
     """Desglose de la certeza cuando varias reglas aportaron evidencia a favor o en contra."""
     if len(dg.disparos) < 2:
         return
-    with st.expander(f"🧮 ¿Por qué {dg.certeza * 100:.0f}% de certeza?"):
+    with st.expander(f"🧮 ¿Por qué {porcentaje(dg.certeza)} de certeza?"):
         for d in dg.disparos:
             icono = "➕" if d.certeza > 0 else "➖"
             sentido = "a favor" if d.certeza > 0 else "en contra"

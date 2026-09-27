@@ -4,6 +4,26 @@ Todos los cambios relevantes del proyecto se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.6.0] - 2026-09-26
+
+### Agregado
+- Pruebas de verificación (`"prueba": true`): el sistema las propone al final, después de los
+  síntomas, y su resultado es evidencia fuerte. Seis pruebas nuevas: otra fuente de poder, otro
+  cargador, otro monitor o cable, un solo módulo de RAM, estado SMART del disco y análisis antivirus.
+  La temperatura del procesador pasa a ser una prueba.
+- En la web y en la consola, las pruebas se marcan como tales y se pueden omitir ("No puedo
+  hacerla"); en la web, "Ver el diagnóstico sin más pruebas".
+
+### Cambiado
+- Las reglas que usan la temperatura exigen que haya imagen (hace falta para medirla).
+- Las certezas se muestran como máximo en 99 % salvo que sean exactamente 1: un diagnóstico casi
+  seguro no se presenta como infalible por redondeo.
+- El validador permite que la evidencia sobre distintos diagnósticos tenga las mismas condiciones.
+
+### Corregido
+- La consulta ya no pregunta evidencia de un diagnóstico que solo podría confirmarse con preguntas
+  respondidas con "no sé".
+
 ## [1.5.0] - 2026-09-26
 
 ### Agregado
@@ -97,6 +117,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Cambiado
 - Arquitectura separada en conocimiento, motor e interfaz; hechos booleanos con negación.
 
+[1.6.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque/compare/v1.2.1...v1.3.0

@@ -36,13 +36,49 @@
       "unidad": "°C",
       "minimo": 0,
       "maximo": 125,
-      "ayuda": "Puedes verla con programas gratuitos como HWMonitor o Core Temp. Si no puedes medirla, responde 'no sé'."
+      "prueba": true,
+      "ayuda": "Puedes verla con programas gratuitos como HWMonitor o Core Temp. Si no puedes medirla, responde 'No puedo hacerla'."
     },
     "fecha_hora_incorrecta":     { "pregunta": "¿La fecha y hora se reinician cada vez que apaga el equipo?" },
     "conexion_red":              { "pregunta": "¿El equipo se conecta a alguna red (WiFi/Ethernet)?" },
     "otros_dispositivos_conectan": { "pregunta": "¿Otros dispositivos (celular, otra computadora) se conectan a internet en la misma red?" },
     "otras_apps_funcionan":      { "pregunta": "¿Las demás aplicaciones funcionan con normalidad?" },
-    "perifericos_responden":     { "pregunta": "¿El teclado y el mouse USB responden al encender?" }
+    "perifericos_responden":     { "pregunta": "¿El teclado y el mouse USB responden al encender?" },
+
+    "prueba_otra_fuente": {
+      "pregunta": "Prueba con otra fuente de poder compatible (o con un probador de fuentes). ¿El problema desaparece?",
+      "prueba": true,
+      "ayuda": "Apaga y desconecta el equipo antes de cambiar la fuente. Si no tienes otra fuente, responde 'No puedo hacerla'."
+    },
+    "prueba_otro_cargador": {
+      "pregunta": "Prueba con otro cargador compatible (mismo voltaje). ¿La laptop enciende o empieza a cargar?",
+      "prueba": true
+    },
+    "prueba_otro_monitor": {
+      "pregunta": "Conecta otro monitor o usa otro cable de video. ¿Ahora aparece imagen?",
+      "prueba": true,
+      "ayuda": "Revisa también que el monitor tenga seleccionada la entrada correcta (HDMI, DisplayPort, VGA)."
+    },
+    "prueba_un_modulo_ram": {
+      "pregunta": "Deja un solo módulo de RAM instalado y prueba cada módulo por separado. ¿El equipo muestra imagen con alguno de ellos?",
+      "prueba": true,
+      "ayuda": "Apaga, desconecta el equipo y toca una superficie metálica antes de manipular la RAM. Usa el primer slot que indique el manual de la placa."
+    },
+    "prueba_smart": {
+      "pregunta": "Abre CrystalDiskInfo. ¿Qué estado de salud muestra el disco?",
+      "tipo": "opcion",
+      "prueba": true,
+      "opciones": {
+        "bueno": "Bueno",
+        "precaucion": "Precaución",
+        "malo": "Malo"
+      },
+      "ayuda": "CrystalDiskInfo es gratuito y lee el sistema de autodiagnóstico (SMART) del disco."
+    },
+    "prueba_antivirus": {
+      "pregunta": "Haz un análisis completo con Windows Defender o Malwarebytes. ¿Encontró amenazas?",
+      "prueba": true
+    }
   },
   "reglas": [
     {
@@ -150,7 +186,7 @@
     {
       "id": "R14",
       "descripcion": "Sobrecalentamiento",
-      "si": { "enciende": true, "temperatura_cpu": { ">=": 90 } },
+      "si": { "enciende": true, "hay_video": true, "temperatura_cpu": { ">=": 90 } },
       "entonces": "sobrecalentamiento",
       "recomendacion": "Limpiar ventiladores y disipador, y reaplicar pasta térmica",
       "advertencia": "Apaga y desconecta el equipo antes de abrirlo. No uses aspiradora sobre los componentes; usa aire comprimido con el ventilador sujeto.",
@@ -159,7 +195,7 @@
     {
       "id": "E01",
       "descripcion": "La temperatura del procesador es normal",
-      "si": { "enciende": true, "temperatura_cpu": { "<": 70 } },
+      "si": { "enciende": true, "hay_video": true, "temperatura_cpu": { "<": 70 } },
       "entonces": "sobrecalentamiento",
       "confianza": -0.6
     },
@@ -173,7 +209,7 @@
     {
       "id": "R15",
       "descripcion": "Fuente de poder inestable",
-      "si": { "enciende": true, "tipo_equipo": "escritorio", "se_apaga_solo": true, "temperatura_cpu": { "<": 80 } },
+      "si": { "enciende": true, "hay_video": true, "tipo_equipo": "escritorio", "se_apaga_solo": true, "temperatura_cpu": { "<": 80 } },
       "entonces": "falla_fuente",
       "recomendacion": "Probar con otra fuente de poder de la potencia adecuada",
       "advertencia": "Nunca abras la fuente de poder: sus capacitores guardan carga peligrosa aunque esté desconectada. Si hay que reemplazarla, cámbiala completa.",
@@ -218,6 +254,66 @@
       "entonces": "falla_usb",
       "recomendacion": "Desinstalar y reinstalar controladores USB en el Administrador de dispositivos",
       "confianza": 0.75
+    },
+    {
+      "id": "E04", "descripcion": "Con otra fuente el problema desaparece",
+      "si": { "prueba_otra_fuente": true }, "entonces": "falla_fuente", "confianza": 0.95
+    },
+    {
+      "id": "E05", "descripcion": "Con otra fuente el problema continúa",
+      "si": { "prueba_otra_fuente": false }, "entonces": "falla_fuente", "confianza": -0.95
+    },
+    {
+      "id": "E06", "descripcion": "Con otro cargador la laptop funciona",
+      "si": { "prueba_otro_cargador": true }, "entonces": "falla_alimentacion_laptop", "confianza": 0.9
+    },
+    {
+      "id": "E07", "descripcion": "Con otro cargador la laptop sigue sin encender",
+      "si": { "prueba_otro_cargador": false }, "entonces": "falla_alimentacion_laptop", "confianza": -0.6
+    },
+    {
+      "id": "E08", "descripcion": "Con otro monitor o cable aparece imagen",
+      "si": { "prueba_otro_monitor": true }, "entonces": "falla_monitor", "confianza": 0.9
+    },
+    {
+      "id": "E09", "descripcion": "Con otro monitor o cable sigue sin imagen",
+      "si": { "prueba_otro_monitor": false }, "entonces": "falla_monitor", "confianza": -0.8
+    },
+    {
+      "id": "E10", "descripcion": "Con otro monitor o cable aparece imagen",
+      "si": { "prueba_otro_monitor": true }, "entonces": "falla_video", "confianza": -0.95
+    },
+    {
+      "id": "E11", "descripcion": "Con otro monitor o cable sigue sin imagen",
+      "si": { "prueba_otro_monitor": false }, "entonces": "falla_video", "confianza": 0.5
+    },
+    {
+      "id": "E12", "descripcion": "Con un solo módulo de RAM el equipo arranca",
+      "si": { "prueba_un_modulo_ram": true }, "entonces": "falla_ram", "confianza": 0.85
+    },
+    {
+      "id": "E13", "descripcion": "Ningún módulo de RAM funciona solo (puede ser el slot o la placa madre)",
+      "si": { "prueba_un_modulo_ram": false }, "entonces": "falla_ram", "confianza": -0.5
+    },
+    {
+      "id": "E14", "descripcion": "CrystalDiskInfo marca el disco como 'Malo'",
+      "si": { "prueba_smart": "malo" }, "entonces": "falla_disco", "confianza": 0.95
+    },
+    {
+      "id": "E15", "descripcion": "CrystalDiskInfo marca el disco con 'Precaución'",
+      "si": { "prueba_smart": "precaucion" }, "entonces": "falla_disco", "confianza": 0.6
+    },
+    {
+      "id": "E16", "descripcion": "CrystalDiskInfo marca el disco como 'Bueno'",
+      "si": { "prueba_smart": "bueno" }, "entonces": "falla_disco", "confianza": -0.6
+    },
+    {
+      "id": "E17", "descripcion": "El antivirus encontró amenazas",
+      "si": { "prueba_antivirus": true }, "entonces": "malware", "confianza": 0.9
+    },
+    {
+      "id": "E18", "descripcion": "El análisis completo no encontró amenazas",
+      "si": { "prueba_antivirus": false }, "entonces": "malware", "confianza": -0.5
     }
   ]
 }

@@ -25,7 +25,8 @@ respuesta**. Todos admiten además la respuesta **"no sé"**.
 | `numero` | Un valor medido | `unidad`, `minimo`, `maximo` (opcionales) |
 
 Cualquier tipo puede llevar `ayuda`: una explicación de cómo averiguar la respuesta, que se muestra
-junto a la pregunta.
+junto a la pregunta. Y cualquier tipo puede marcarse como **prueba de verificación** con
+`"prueba": true` (ver [Pruebas de verificación](#pruebas-de-verificación)).
 
 ```json
 "calor_excesivo": { "pregunta": "¿El chasis está muy caliente al tacto?" },
@@ -134,6 +135,32 @@ Reglas de uso (el validador las comprueba):
 - La consulta dinámica también pregunta por la evidencia de los diagnósticos que siguen siendo posibles,
   porque puede cambiar su certeza.
 
+## Pruebas de verificación
+
+Un síntoma describe lo que el usuario **observa**; una prueba le pide **hacer algo** y contar el resultado:
+cambiar el monitor, probar otra fuente, revisar el estado SMART del disco. Es lo que hace un técnico
+para confirmar un diagnóstico antes de reparar, y es la evidencia más fuerte que puede tener el sistema.
+
+```json
+"prueba_otro_monitor": {
+  "pregunta": "Conecta otro monitor o usa otro cable de video. ¿Ahora aparece imagen?",
+  "prueba": true,
+  "ayuda": "Revisa también que el monitor tenga seleccionada la entrada correcta."
+}
+```
+
+- Las pruebas se preguntan **al final**, después de agotar los síntomas, y solo si ayudan a alguna
+  hipótesis que sigue abierta.
+- Siempre son opcionales: el usuario puede responder *"No puedo hacerla"* o, en la web, ver el
+  diagnóstico sin hacer más pruebas.
+- Su resultado se conecta con reglas de **evidencia** (`E…`). Una misma prueba puede apoyar una causa y
+  descartar otra: si con otro monitor aparece imagen, apoya "monitor o cable" y descarta "tarjeta de video".
+- Una prueba que **descarta** una causa (el problema sigue igual tras cambiar la pieza sospechosa) debe
+  tener una confianza de alrededor de **−0.95**, para superar incluso a un síntoma fuerte. Con −0.8, un
+  diagnóstico de 0.92 quedaría en 60 %, y eso sería afirmar una causa que la prueba ya descartó.
+- Pide solo pruebas que el usuario pueda hacer: por ejemplo, la temperatura del procesador solo se pide
+  si la pantalla muestra imagen (hace falta para abrir el programa que la mide).
+
 ## Cómo elegir la confianza
 
 | Valor | Cuándo usarlo |
@@ -144,7 +171,9 @@ Reglas de uso (el validador las comprueba):
 | 1.00 en intermedias | Cuando la regla solo resume hechos (no es una suposición) |
 | 0.20 – 0.40 | Evidencia a favor: un indicio que acompaña, pero no alcanza por sí solo |
 | −0.40 – −0.60 | Evidencia en contra moderada: hace menos probable el diagnóstico |
-| −0.70 – −0.90 | Evidencia en contra fuerte: prácticamente lo descarta |
+| −0.70 – −0.90 | Evidencia en contra fuerte: hace muy poco probable el diagnóstico |
+| 0.85 – 0.95 | Resultado de una prueba de verificación que confirma la causa |
+| −0.95 | Resultado de una prueba de verificación que descarta la causa |
 
 ## Validación automática
 
