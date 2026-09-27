@@ -118,6 +118,21 @@ class TestBaseDeConocimiento(unittest.TestCase):
         datos["hechos"]["huerfano"] = {"pregunta": "¿?"}
         self.assertIn("ninguna regla lo usa", self._errores(datos))
 
+    def test_huella_cambia_solo_si_cambia_el_contenido(self):
+        import tempfile
+        from pathlib import Path
+
+        from sistema_experto.conocimiento import huella
+        with tempfile.TemporaryDirectory() as carpeta:
+            a, b = Path(carpeta) / "a.json", Path(carpeta) / "b.json"
+            a.write_text("{}", encoding="utf-8")
+            b.write_text("[]", encoding="utf-8")
+            original = huella(a, b)
+            self.assertEqual(huella(a, b), original)            # mismo contenido, misma huella
+            a.write_text("{ }", encoding="utf-8")               # un solo carácter distinto
+            self.assertNotEqual(huella(a, b), original)
+            self.assertNotEqual(huella(a), huella(a, b))        # depende de todos los archivos
+
     # ── Tipos de pregunta ──────────────────────────────────────
 
     def test_detecta_tipo_desconocido(self):

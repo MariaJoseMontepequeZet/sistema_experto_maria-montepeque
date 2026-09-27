@@ -12,7 +12,7 @@ import json
 
 import streamlit as st
 
-from sistema_experto.conocimiento import cargar
+from sistema_experto.conocimiento import RUTA_POR_DEFECTO, cargar, huella
 from sistema_experto.modelo import NUMERO, OPCION, Valor, porcentaje
 from sistema_experto.motor import (
     CONTRADICHA,
@@ -27,7 +27,7 @@ from sistema_experto.motor import (
     pregunta_sobre,
     siguiente_pregunta,
 )
-from sistema_experto.validacion import cargar_casos, evaluar
+from sistema_experto.validacion import RUTA_CASOS, cargar_casos, evaluar
 from sistema_experto.visualizacion import dot_razonamiento, dot_red
 
 REPOSITORIO = "https://github.com/MariaJoseMontepequeZet/sistema_experto_maria-montepeque"
@@ -36,17 +36,19 @@ ICONOS = {True: "✅", False: "❌", None: "❔"}
 st.set_page_config(page_title="Diagnóstico de PC", page_icon="🖥️", layout="centered")
 
 
-@st.cache_resource
-def base_de_conocimiento():
+# Las cachés dependen de la huella del contenido de los archivos: si el conocimiento o los
+# casos cambian (por ejemplo, al publicar una versión), se recargan sin reiniciar la app.
+@st.cache_resource(max_entries=1)
+def base_de_conocimiento(huella_conocimiento: str):
     return cargar()
 
 
-BASE = base_de_conocimiento()
+BASE = base_de_conocimiento(huella(RUTA_POR_DEFECTO))
 
 
-@st.cache_data
-def precision_medida() -> tuple[float, int, int]:
-    """Precisión sobre los casos de referencia (se calcula una sola vez)."""
+@st.cache_data(max_entries=1)
+def precision_medida(huella_conocimiento_y_casos: str) -> tuple[float, int, int]:
+    """Precisión sobre los casos de referencia (se recalcula solo si cambian los archivos)."""
     evaluacion = evaluar(BASE, cargar_casos(BASE))
     return evaluacion.precision, sum(r.acierto for r in evaluacion.cubiertos), len(evaluacion.cubiertos)
 
@@ -122,7 +124,7 @@ def barra_lateral(r: dict[str, Valor]) -> None:
         st.divider()
         st.caption("⚠️ **Aviso:** este sistema orienta, no reemplaza a un técnico. "
                    "Apaga y desconecta el equipo antes de abrirlo.")
-        precision, aciertos, total = precision_medida()
+        precision, aciertos, total = precision_medida(huella(RUTA_POR_DEFECTO, RUTA_CASOS))
         st.caption(f"📊 **Precisión medida: {precision * 100:.0f} %** ({aciertos} de {total} "
                    f"[casos de referencia]({REPOSITORIO}/blob/main/casos/casos_referencia.json))")
         st.caption(f"[Código fuente en GitHub]({REPOSITORIO})")

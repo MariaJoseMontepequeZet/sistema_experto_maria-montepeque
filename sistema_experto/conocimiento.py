@@ -8,6 +8,7 @@ el validador reporta TODOS los problemas juntos con mensajes claros.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,17 @@ class ErrorDeConocimiento(ValueError):
         self.errores = errores
         detalle = "\n".join(f"  - {e}" for e in errores)
         super().__init__(f"La base de conocimiento tiene {len(errores)} error(es):\n{detalle}")
+
+
+def huella(*rutas: str | Path) -> str:
+    """
+    Huella (SHA-256) del contenido de uno o más archivos: cambia si cambia cualquier byte.
+    Sirve de clave de caché para recargar el conocimiento cuando el archivo se modifica.
+    """
+    resumen = hashlib.sha256()
+    for ruta in rutas:
+        resumen.update(Path(ruta).read_bytes())
+    return resumen.hexdigest()
 
 
 def cargar(ruta: str | Path = RUTA_POR_DEFECTO) -> BaseDeConocimiento:
