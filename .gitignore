@@ -5,3 +5,6 @@ __pycache__/
 
 # Salida generada por la opción "Exportar red de inferencia"
 red_inferencia.json
+
+# Base de datos de clientes y consumo (modo comercial): no se sube
+datos/

@@ -7,6 +7,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ## [Sin publicar]
 
 ### Agregado
+- Modo comercial de la API: clientes con clave propia, planes (por consulta $5, básico $10/mes con 50 consultas,
+  profesional $15/mes con 150), cuota mensual (`402`), límite por minuto (`429`), conteo de consultas, `/v1/uso`
+  y rutas de administración con facturación mensual. Los planes se editan en `configuracion/planes.json`. Ver
+  [docs/comercial.md](docs/comercial.md).
 - API REST (FastAPI) sobre el mismo motor, sin estado: `/v1/consulta/siguiente`, `/v1/consulta/resultado`,
   `/v1/conocimiento` y `/v1/precision`, con autenticación opcional por `X-API-Key`. Ver [docs/api.md](docs/api.md).
 - Informe PDF con la marca del taller (nombre, color, contacto y logo) y los datos del servicio, generado en el

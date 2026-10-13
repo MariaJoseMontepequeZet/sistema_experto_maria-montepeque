@@ -8,8 +8,11 @@ en cada llamada el cliente envía todas las respuestas que lleva y recibe la sig
 diagnóstico. Así se puede escalar sin sesiones y cada cliente (web, móvil, un script recolector)
 decide cómo guardar la consulta.
 
-Configuración por variables de entorno:
-    SISTEMA_EXPERTO_API_KEYS      claves válidas separadas por comas; sin ellas la API queda abierta
+Configuración por variables de entorno (la parte comercial está en comercial.py y docs/comercial.md):
+    SISTEMA_EXPERTO_ADMIN_KEY     activa el modo comercial (clientes con clave, plan y cuota)
+    SISTEMA_EXPERTO_BD            ruta de la base de datos de clientes (SQLite)
+    SISTEMA_EXPERTO_PLANES        ruta de otro archivo de planes y precios
+    SISTEMA_EXPERTO_API_KEYS      modo abierto: claves válidas separadas por comas; sin ellas, API abierta
     SISTEMA_EXPERTO_CONOCIMIENTO  ruta de otra base de conocimiento JSON
     SISTEMA_EXPERTO_CORS          orígenes permitidos separados por comas (frontend en otro dominio)
 """
@@ -19,16 +22,17 @@ from __future__ import annotations
 import base64
 import binascii
 import os
-import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Response, Security
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
+from .clientes import Cliente
+from .comercial import cobrar, exigir_clave
+from .comercial import router as rutas_comerciales
 from .conocimiento import RUTA_POR_DEFECTO, cargar
 from .informe import DatosServicio, Marca, generar_pdf
 from .modelo import NUMERO, OPCION, Hecho, Valor, porcentaje
@@ -56,20 +60,10 @@ app = FastAPI(
 
 _origenes = [o.strip() for o in os.environ.get("SISTEMA_EXPERTO_CORS", "").split(",") if o.strip()]
 if _origenes:
-    app.add_middleware(CORSMiddleware, allow_origins=_origenes, allow_methods=["GET", "POST"],
-                       allow_headers=["X-API-Key", "Content-Type"])
-
-
-# ── Autenticación por clave de API ────────────────────────────
-
-_cabecera_clave = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-def exigir_clave(clave: Annotated[str | None, Security(_cabecera_clave)] = None) -> None:
-    """Si hay claves configuradas, exige una válida. Sin claves, la API queda abierta."""
-    validas = [k.strip() for k in os.environ.get("SISTEMA_EXPERTO_API_KEYS", "").split(",") if k.strip()]
-    if validas and not (clave and any(secrets.compare_digest(clave, v) for v in validas)):
-        raise HTTPException(401, "Clave de API ausente o inválida (cabecera X-API-Key).")
+    app.add_middleware(CORSMiddleware, allow_origins=_origenes,
+                       allow_methods=["GET", "POST", "PUT", "DELETE"],
+                       allow_headers=["X-API-Key", "X-Admin-Key", "Content-Type"])
+app.include_router(rutas_comerciales)
 
 
 # ── Modelos de entrada ────────────────────────────────────────
@@ -220,9 +214,14 @@ def siguiente(consulta: Consulta) -> dict:
 
 
 @app.post("/v1/consulta/resultado", tags=["Consulta"], dependencies=[Depends(exigir_clave)])
-def resultado(consulta: Consulta) -> dict:
-    """El diagnóstico con las respuestas dadas: ordenado por certeza, con su evidencia y razonamiento."""
+def resultado(consulta: Consulta, respuesta: Response,
+              cliente: Annotated[Cliente | None, Depends(exigir_clave)]) -> dict:
+    """
+    El diagnóstico con las respuestas dadas: ordenado por certeza, con su evidencia y razonamiento.
+    Es la llamada que cuenta como una consulta del plan (una vez por conjunto de respuestas al mes).
+    """
     r = validar(consulta)
+    cobrar(cliente, r, respuesta)
     inferencia = encadenar_hacia_adelante(BASE, r)
     return {
         "respondidas": len(r),
@@ -239,8 +238,11 @@ def resultado(consulta: Consulta) -> dict:
 
 @app.post("/v1/consulta/informe", tags=["Consulta"], dependencies=[Depends(exigir_clave)],
           response_class=Response, responses={200: {"content": {"application/pdf": {}}}})
-def informe(consulta: ConsultaInforme) -> Response:
-    """El diagnóstico de `/resultado` como PDF con la marca del taller, listo para entregar al cliente."""
+def informe(consulta: ConsultaInforme, cliente: Annotated[Cliente | None, Depends(exigir_clave)]) -> Response:
+    """
+    El diagnóstico de `/resultado` como PDF con la marca del taller, listo para entregar al cliente.
+    Si ya pediste el diagnóstico con las mismas respuestas este mes, no cuenta otra consulta.
+    """
     r = validar(consulta)
     try:
         logo_texto = consulta.marca.logo_base64
@@ -248,10 +250,12 @@ def informe(consulta: ConsultaInforme) -> Response:
         marca = Marca(consulta.marca.nombre, consulta.marca.color, consulta.marca.contacto, logo)
     except (binascii.Error, ValueError, OSError) as error:
         raise HTTPException(422, f"El logo no es una imagen PNG o JPG válida en base64 ({error}).") from error
+    entrega = Response()
+    cobrar(cliente, r, entrega)
     pdf = generar_pdf(BASE, r, encadenar_hacia_adelante(BASE, r), marca,
                       DatosServicio(**consulta.servicio.model_dump()))
-    return Response(pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": 'attachment; filename="informe-diagnostico.pdf"'})
+    return Response(pdf, media_type="application/pdf", headers={
+        **entrega.headers, "Content-Disposition": 'attachment; filename="informe-diagnostico.pdf"'})
 
 
 @lru_cache(maxsize=1)
