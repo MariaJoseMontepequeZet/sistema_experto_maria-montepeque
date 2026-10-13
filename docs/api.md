@@ -35,6 +35,7 @@ La documentación interactiva (Swagger) queda en <http://localhost:8000/docs> y 
 | `GET /v1/conocimiento` | Todas las preguntas (tipo, opciones, unidad, rango, ayuda) y cuántos diagnósticos cubre. |
 | `POST /v1/consulta/siguiente` | Dadas las respuestas, devuelve la próxima pregunta o `terminada: true`. |
 | `POST /v1/consulta/resultado` | Diagnósticos ordenados por certeza, con evidencias, razonamiento y descartados. |
+| `POST /v1/consulta/informe` | El mismo diagnóstico como **PDF** con la marca del taller (ver abajo). |
 | `GET /v1/precision` | Precisión medida con los casos de referencia. |
 
 ### El cuerpo de las consultas
@@ -78,6 +79,42 @@ curl -X POST http://localhost:8000/v1/consulta/resultado \
 
 Devuelve, entre otros, `diagnosticos[0].descripcion` (`"Fuente de poder dañada"`), su `certeza`, las
 `recomendaciones` y `advertencias` y el `razonamiento` paso a paso.
+
+## Informe PDF
+
+`POST /v1/consulta/informe` recibe el mismo cuerpo que las demás consultas, más la marca y los datos del
+servicio, y devuelve un `application/pdf` descargable:
+
+```json
+{
+  "respuestas": { "enciende": false, "tipo_equipo": "escritorio", "luces_led": false,
+                  "interruptor_fuente_encendido": true },
+  "marca": {
+    "nombre": "Taller Los Pinos",
+    "color": "#0b6e4f",
+    "contacto": "Tel. 5555-1234 · Zona 10",
+    "logo_base64": "iVBORw0KGgo..."
+  },
+  "servicio": {
+    "cliente": "Ana López",
+    "equipo": "Laptop HP 15, serie 8CG123",
+    "tecnico": "Carlos Pérez",
+    "observaciones": "No enciende desde ayer."
+  }
+}
+```
+
+Todos los campos de `marca` y `servicio` son opcionales. `color` es `#rrggbb`; `logo_base64` es un PNG o
+JPG de hasta ~500 KB. Un color o un logo inválidos responden `422`.
+
+El PDF trae el encabezado con la marca, los datos del servicio, el diagnóstico con su barra de certeza, las
+recomendaciones y advertencias, otros diagnósticos posibles, los descartados con su motivo, lo que se
+comprobó en el equipo, el razonamiento y el aviso de seguridad al pie. Sin diagnóstico, el informe lo dice y
+recomienda una revisión presencial.
+
+```bash
+curl -X POST http://localhost:8000/v1/consulta/informe -H "Content-Type: application/json"   -d '{"respuestas": {"enciende": false, "tipo_equipo": "escritorio", "luces_led": false, "interruptor_fuente_encendido": true}, "marca": {"nombre": "Taller Los Pinos"}}'   --output informe.pdf
+```
 
 ## Qué falta antes de ofrecerla a clientes
 
