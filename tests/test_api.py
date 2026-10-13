@@ -40,6 +40,8 @@ class TestApi(unittest.TestCase):
         self.assertFalse(datos["terminada"])
         self.assertEqual(datos["pregunta"]["hecho"], "enciende")
         self.assertEqual(datos["progreso"]["respondidas"], 0)
+        progreso = datos["progreso"]   # abiertas = fallas distintas: nunca más que las posibles
+        self.assertEqual(progreso["hipotesis_abiertas"], progreso["diagnosticos_posibles"])
 
     def test_pregunta_de_opcion_incluye_opciones(self):
         pregunta = self.siguiente({"enciende": False}).json()["pregunta"]

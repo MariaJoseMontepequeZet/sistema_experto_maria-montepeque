@@ -22,6 +22,30 @@ jobs:
           python -m pip install ruff
           ruff check --output-format=github .
 
+  web:
+    name: Interfaz web (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar y correr las pruebas
+        run: npm test
+
+      - name: Comprobar que el JavaScript versionado está al día
+        run: git diff --exit-code -- public/js
+
   tests:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
