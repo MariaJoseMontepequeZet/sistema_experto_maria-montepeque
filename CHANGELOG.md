@@ -4,6 +4,13 @@ Todos los cambios relevantes del proyecto se documentan aquí.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Agregado
+- API REST (FastAPI) sobre el mismo motor, sin estado: `/v1/consulta/siguiente`, `/v1/consulta/resultado`,
+  `/v1/conocimiento` y `/v1/precision`, con autenticación opcional por `X-API-Key`. Ver [docs/api.md](docs/api.md).
+- `requirements-api.txt`, extra `api` en `pyproject.toml` y pruebas de la API en el CI.
+
 ## [1.9.0] - 2026-09-27
 
 ### Agregado

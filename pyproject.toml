@@ -17,6 +17,7 @@ classifiers = [
 
 [project.optional-dependencies]
 web = ["streamlit>=1.50"]
+api = ["fastapi>=0.115", "uvicorn[standard]>=0.30"]
 
 [project.urls]
 Demo = "https://diagnostico-pc-sistema-experto.streamlit.app/"

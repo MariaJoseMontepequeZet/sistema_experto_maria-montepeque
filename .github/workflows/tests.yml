@@ -53,3 +53,9 @@ jobs:
 
       - name: Ejecutar pruebas de la interfaz web
         run: python -m unittest tests.test_app -v
+
+      - name: Instalar dependencias de la API REST
+        run: python -m pip install -r requirements-api.txt
+
+      - name: Ejecutar pruebas de la API REST
+        run: python -m unittest tests.test_api -v
