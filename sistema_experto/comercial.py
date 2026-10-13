@@ -38,8 +38,9 @@ PLANES: dict[str, Plan] = cargar_planes()
 _limitador = LimitadorPorMinuto()
 reloj = time.monotonic     # las pruebas lo reemplazan
 
-_cabecera_clave = APIKeyHeader(name="X-API-Key", auto_error=False)
-_cabecera_admin = APIKeyHeader(name="X-Admin-Key", auto_error=False)
+# cada esquema lleva su propio nombre: si no, Swagger los fusiona y solo deja escribir una de las dos claves
+_cabecera_clave = APIKeyHeader(name="X-API-Key", scheme_name="Clave de API", auto_error=False)
+_cabecera_admin = APIKeyHeader(name="X-Admin-Key", scheme_name="Clave de administración", auto_error=False)
 
 
 @lru_cache(maxsize=8)
