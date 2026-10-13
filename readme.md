@@ -29,7 +29,7 @@ proyecto con arquitectura modular, pruebas automatizadas, integración continua 
 - **Respuestas "no sé"** y la pregunta **"¿por qué me preguntas esto?"**.
 - **Advertencias de seguridad** en los diagnósticos que implican abrir el equipo o arriesgar datos.
 - **Conocimiento validado:** el archivo de reglas se revisa al cargarse y cualquier error se reporta con un mensaje claro.
-- **Tres interfaces sobre el mismo motor:** web (Streamlit), consola (sin dependencias) y [API REST](docs/api.md) (FastAPI) para integrarlo en otros sistemas.
+- **Tres interfaces sobre el mismo motor:** web (Streamlit), consola (sin dependencias) y [API REST](docs/api.md) (FastAPI) para integrarlo en otros sistemas, con **informe PDF** con la marca del taller.
 
 ## 🚀 Cómo usarlo
 

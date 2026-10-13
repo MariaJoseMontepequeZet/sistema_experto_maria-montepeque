@@ -16,18 +16,21 @@ Configuración por variables de entorno:
 
 from __future__ import annotations
 
+import base64
+import binascii
 import os
 import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, HTTPException, Response, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
 from .conocimiento import RUTA_POR_DEFECTO, cargar
+from .informe import DatosServicio, Marca, generar_pdf
 from .modelo import NUMERO, OPCION, Hecho, Valor, porcentaje
 from .motor import (
     Diagnostico,
@@ -79,6 +82,27 @@ class Consulta(BaseModel):
     )
     completo: bool = Field(False, description="Hacer todas las preguntas en orden, sin consulta dinámica.")
     omitir_pruebas: bool = Field(False, description="Terminar sin las pruebas de verificación que faltan.")
+
+
+class MarcaEntrada(BaseModel):
+    """Identidad del taller en el encabezado del informe."""
+    nombre: str = Field("Informe de diagnóstico", max_length=80)
+    color: str = Field("#1f4e79", pattern=r"^#[0-9a-fA-F]{6}$", description="Color del encabezado, #rrggbb.")
+    contacto: str = Field("", max_length=120, description="Teléfono, correo o dirección.")
+    logo_base64: str | None = Field(None, max_length=700_000,
+                                    description="Logo PNG o JPG en base64 (hasta ~500 KB).")
+
+
+class ServicioEntrada(BaseModel):
+    cliente: str = Field("", max_length=80)
+    equipo: str = Field("", max_length=120, description="Por ejemplo: Laptop HP 15, serie XYZ.")
+    tecnico: str = Field("", max_length=80)
+    observaciones: str = Field("", max_length=500)
+
+
+class ConsultaInforme(Consulta):
+    marca: MarcaEntrada = Field(default_factory=MarcaEntrada)
+    servicio: ServicioEntrada = Field(default_factory=ServicioEntrada)
 
 
 def validar(consulta: Consulta) -> dict[str, Valor]:
@@ -211,6 +235,23 @@ def resultado(consulta: Consulta) -> dict:
         "aviso": ("Este sistema orienta, no reemplaza a un técnico. "
                   "Apaga y desconecta el equipo antes de abrirlo."),
     }
+
+
+@app.post("/v1/consulta/informe", tags=["Consulta"], dependencies=[Depends(exigir_clave)],
+          response_class=Response, responses={200: {"content": {"application/pdf": {}}}})
+def informe(consulta: ConsultaInforme) -> Response:
+    """El diagnóstico de `/resultado` como PDF con la marca del taller, listo para entregar al cliente."""
+    r = validar(consulta)
+    try:
+        logo_texto = consulta.marca.logo_base64
+        logo = base64.b64decode(logo_texto, validate=True) if logo_texto else None
+        marca = Marca(consulta.marca.nombre, consulta.marca.color, consulta.marca.contacto, logo)
+    except (binascii.Error, ValueError, OSError) as error:
+        raise HTTPException(422, f"El logo no es una imagen PNG o JPG válida en base64 ({error}).") from error
+    pdf = generar_pdf(BASE, r, encadenar_hacia_adelante(BASE, r), marca,
+                      DatosServicio(**consulta.servicio.model_dump()))
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="informe-diagnostico.pdf"'})
 
 
 @lru_cache(maxsize=1)

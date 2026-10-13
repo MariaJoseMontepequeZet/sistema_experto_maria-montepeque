@@ -9,6 +9,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Agregado
 - API REST (FastAPI) sobre el mismo motor, sin estado: `/v1/consulta/siguiente`, `/v1/consulta/resultado`,
   `/v1/conocimiento` y `/v1/precision`, con autenticación opcional por `X-API-Key`. Ver [docs/api.md](docs/api.md).
+- Informe PDF con la marca del taller (nombre, color, contacto y logo) y los datos del servicio, generado en el
+  servidor con `reportlab`: `POST /v1/consulta/informe` y `sistema_experto/informe.py`.
 - `requirements-api.txt`, extra `api` en `pyproject.toml` y pruebas de la API en el CI.
 
 ## [1.9.0] - 2026-09-27
