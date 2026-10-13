@@ -244,6 +244,7 @@ class TestApiComercial(unittest.TestCase):
         informe = self.web.post("/v1/consulta/informe", json={"respuestas": FUENTE}, headers=claves)
         self.assertEqual(informe.status_code, 200)
         self.assertTrue(informe.content.startswith(b"%PDF"))
+        self.assertEqual(informe.headers["content-length"], str(len(informe.content)))
         self.assertEqual(self.web.get("/v1/uso", headers=claves).json()["consultas"], 1)
 
     def test_el_informe_de_un_diagnostico_nuevo_si_cuenta(self):

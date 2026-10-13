@@ -89,6 +89,9 @@ class TestRutaInforme(unittest.TestCase):
         self.assertEqual(r.headers["content-type"], "application/pdf")
         self.assertIn("attachment", r.headers["content-disposition"])
         self.assertTrue(r.content.startswith(b"%PDF"))
+        # un navegador real corta el cuerpo en content-length: debe ser el largo del PDF, no 0
+        self.assertEqual(r.headers["content-length"], str(len(r.content)))
+        self.assertGreater(len(r.content), 1000)
 
     def test_con_logo(self):
         logo = base64.b64encode(png_minimo()).decode()

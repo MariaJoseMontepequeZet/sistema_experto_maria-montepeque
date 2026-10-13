@@ -7,6 +7,9 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ## [Sin publicar]
 
 ### Agregado
+- Interfaz web para talleres en TypeScript (sin frameworks), servida por la propia API en `/app/`: entrada con clave,
+  consulta guiada, resultado y descarga del informe PDF con la marca del taller. Ver [docs/web.md](docs/web.md).
+- Trabajo de CI para la interfaz: compila, comprueba que el JavaScript versionado esté al día y corre sus pruebas.
 - Modo comercial de la API: clientes con clave propia, planes (por consulta $5, básico $10/mes con 50 consultas,
   profesional $15/mes con 150), cuota mensual (`402`), límite por minuto (`429`), conteo de consultas, `/v1/uso`
   y rutas de administración con facturación mensual. Los planes se editan en `configuracion/planes.json`. Ver
@@ -16,6 +19,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - Informe PDF con la marca del taller (nombre, color, contacto y logo) y los datos del servicio, generado en el
   servidor con `reportlab`: `POST /v1/consulta/informe` y `sistema_experto/informe.py`.
 - `requirements-api.txt`, extra `api` en `pyproject.toml` y pruebas de la API en el CI.
+
+### Corregido
+- `/v1/consulta/informe` devolvía el PDF con `content-length: 0`, que un navegador real recibía vacío.
+- `progreso.hipotesis_abiertas` contaba reglas y podía superar a `diagnosticos_posibles` (26 de 21); ahora cuenta fallas.
 
 ## [1.9.0] - 2026-09-27
 

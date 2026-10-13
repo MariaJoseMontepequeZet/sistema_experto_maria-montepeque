@@ -28,6 +28,8 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .clientes import Cliente
@@ -50,6 +52,7 @@ from .validacion import cargar_casos, evaluar
 VERSION = "1.9.0"
 BASE = cargar(Path(os.environ.get("SISTEMA_EXPERTO_CONOCIMIENTO") or RUTA_POR_DEFECTO))
 DIAGNOSTICOS_POSIBLES = len(BASE.hechos_diagnostico)
+RUTA_WEB = Path(__file__).resolve().parent.parent / "web" / "public"
 
 app = FastAPI(
     title="Sistema experto: diagnóstico de PC",
@@ -207,7 +210,8 @@ def siguiente(consulta: Consulta) -> dict:
         "pregunta": _pregunta(pregunta) if pregunta else None,
         "progreso": {
             "respondidas": len(r),
-            "hipotesis_abiertas": len(hipotesis_abiertas(BASE, r)),
+            # fallas distintas, no reglas (cada falla tiene varias)
+            "hipotesis_abiertas": len({a.regla.conclusion for a in hipotesis_abiertas(BASE, r)}),
             "diagnosticos_posibles": DIAGNOSTICOS_POSIBLES,
         },
     }
@@ -254,8 +258,10 @@ def informe(consulta: ConsultaInforme, cliente: Annotated[Cliente | None, Depend
     cobrar(cliente, r, entrega)
     pdf = generar_pdf(BASE, r, encadenar_hacia_adelante(BASE, r), marca,
                       DatosServicio(**consulta.servicio.model_dump()))
+    # solo las cabeceras de consumo: copiar todas arrastraría el content-length: 0 de la respuesta vacía
+    consumo = {k: v for k, v in entrega.headers.items() if k.startswith("x-consultas")}
     return Response(pdf, media_type="application/pdf", headers={
-        **entrega.headers, "Content-Disposition": 'attachment; filename="informe-diagnostico.pdf"'})
+        **consumo, "Content-Disposition": 'attachment; filename="informe-diagnostico.pdf"'})
 
 
 @lru_cache(maxsize=1)
@@ -275,3 +281,13 @@ def _precision() -> dict:
 def precision() -> dict:
     """Precisión medida con los casos de referencia (se calcula una vez por arranque)."""
     return _precision()
+
+
+# ── Interfaz web (web/, en TypeScript) ────────────────────────
+
+if RUTA_WEB.is_dir():
+    @app.get("/", include_in_schema=False)
+    def inicio() -> RedirectResponse:
+        return RedirectResponse("/app/")
+
+    app.mount("/app", StaticFiles(directory=RUTA_WEB, html=True), name="web")
