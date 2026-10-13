@@ -116,8 +116,12 @@ recomienda una revisión presencial.
 curl -X POST http://localhost:8000/v1/consulta/informe -H "Content-Type: application/json"   -d '{"respuestas": {"enciende": false, "tipo_equipo": "escritorio", "luces_led": false, "interruptor_fuente_encendido": true}, "marca": {"nombre": "Taller Los Pinos"}}'   --output informe.pdf
 ```
 
+## Clientes, planes y facturación
+
+Para operarla como servicio de pago, con una clave por cliente, planes y cuotas, ver [Modo comercial](comercial.md).
+
 ## Qué falta antes de ofrecerla a clientes
 
-Esta es la base técnica. Para operarla como servicio de pago faltan: límite de uso por clave, claves por
-cliente guardadas en una base de datos (hoy son una lista en el entorno), registro de consultas y despliegue
-con HTTPS.
+Ya están las claves por cliente, los planes, las cuotas y el conteo de consultas. Faltan el cobro automático
+(pasarela de pagos), el despliegue con HTTPS y un portal para que el cliente vea su cuenta. Ver los límites
+conocidos en [Modo comercial](comercial.md).

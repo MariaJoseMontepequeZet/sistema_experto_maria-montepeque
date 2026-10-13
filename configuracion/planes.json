@@ -1,0 +1,22 @@
+{
+  "por_uso": {
+    "nombre": "Por consulta",
+    "tipo": "por_uso",
+    "precio_usd": 5,
+    "limite_por_minuto": 30
+  },
+  "basico": {
+    "nombre": "Plan básico",
+    "tipo": "mensual",
+    "precio_usd": 10,
+    "consultas_incluidas": 50,
+    "limite_por_minuto": 60
+  },
+  "profesional": {
+    "nombre": "Plan profesional",
+    "tipo": "mensual",
+    "precio_usd": 15,
+    "consultas_incluidas": 150,
+    "limite_por_minuto": 120
+  }
+}
